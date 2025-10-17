@@ -1,0 +1,134 @@
+#ifndef __MAIN_H__
+#define __MAIN_H__
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <sys/wait.h>
+#include <ctype.h>
+
+typedef int (*builtin_f_t) (int argc, char *argv[]);
+
+typedef struct {
+    char *name;
+    builtin_f_t f;
+} buitlin_t;
+
+typedef enum {
+    TOK_WORD,
+    TOK_SEMI,
+    TOK_PIPE,
+    TOK_OR,
+    TOK_AND,
+    TOK_BG,
+    TOK_FD,
+    TOK_REDIR_IN,
+    TOK_REDIR_OUT,
+    TOK_REDIR_APPEND,
+    TOK_HEREDOC,
+    TOK_EOF,
+} token_type_e;
+
+typedef struct {
+    token_type_e type;
+    char *value;
+} token_t;
+
+typedef struct {
+    char *input;
+    size_t pos;
+    unsigned int length;
+} tokenizer_t;
+
+typedef enum {
+    REDIR_IN,
+    REDIR_OUT,
+    REDIR_APPEND,
+} redirection_e;
+
+typedef struct {
+    int fd;
+    redirection_e type;
+    char *target;
+} redirection_t;
+
+typedef struct {
+    int argc;
+    char **argv;
+    redirection_t *redir;
+    size_t redir_count;
+    bool is_bg;
+} cmd_node_t;
+
+typedef struct {
+    struct ast_node_t *left;
+    struct ast_node_t *right;
+} pipe_node_t;
+
+typedef enum {
+    COND_AND,
+    COND_OR
+} cond_op_e;
+
+typedef struct {
+    struct ast_node_t *left;
+    struct ast_node_t *right;
+    cond_op_e op;    
+} cond_node_t;
+
+typedef struct {
+    struct ast_node_t **nodes;
+    size_t nodes_count;
+} seq_node_t;
+
+typedef enum {
+    NODE_CMD,
+    NODE_PIPELINE,
+    NODE_CONDITIONAL,
+    NODE_SEQUENCE
+} ast_node_type_e;
+
+typedef struct ast_node_t {
+    ast_node_type_e type;
+    union {
+        cmd_node_t cmd;
+        pipe_node_t pipe;
+        cond_node_t cond;
+        seq_node_t seq;
+    };
+} ast_node_t;
+
+bool is_metachar(char c);
+void *realloc_s(void *ptr, size_t s);
+char peek(tokenizer_t *tz);
+char advance(tokenizer_t *tz);
+void skip_whitespaces(tokenizer_t *tz);
+token_t get_next_token(tokenizer_t *tz);
+void print_token(token_t tok);
+
+token_t g_tok;
+
+void next_token(tokenizer_t *tz);
+ast_node_t *parse_command(tokenizer_t *tz);
+ast_node_t *parse_pipeline(tokenizer_t *tz);
+ast_node_t *parse_conditional(tokenizer_t *tz);
+ast_node_t *parse_sequence(tokenizer_t *tz);
+
+
+const char* PATH;
+
+char *is_in_path(char *cmd);
+bool is_builtin(char *name);
+
+int cd_builtin(int argc, char *argv[]);
+int echo_builtin(int argc, char *argv[]);
+int exit_builtin(int argc, char *argv[]);
+int pwd_builtin(int argc, char *argv[]);
+int type_builtin(int argc, char *argv[]);
+
+
+#endif // __MAIN_H__
