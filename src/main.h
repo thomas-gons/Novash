@@ -11,6 +11,9 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <signal.h>
+
+#define MAX_BG_TASKS 128
 
 typedef int (*builtin_f_t) (int argc, char *argv[]);
 
@@ -103,6 +106,8 @@ typedef struct ast_node_t {
     };
 } ast_node_t;
 
+typedef void (*runner_f_t) (cmd_node_t cmd_node);
+
 bool is_metachar(char c);
 void *realloc_s(void *ptr, size_t s);
 char peek(tokenizer_t *tz);
@@ -120,9 +125,21 @@ ast_node_t *parse_conditional(tokenizer_t *tz);
 ast_node_t *parse_sequence(tokenizer_t *tz);
 
 int handle_redirection(cmd_node_t cmd_node);
+void sigchld_handler(int sig);
+int run_child(cmd_node_t cmd_node, runner_f_t runner_f);
+void builtin_runner(cmd_node_t cmd_node);
+void external_cmd_runner(cmd_node_t cmd_node);
 int exec_node(ast_node_t *ast_node);
 
-const char* PATH;
+
+typedef struct {
+    pid_t bg_tasks[MAX_BG_TASKS];
+    size_t bg_tasks_count;
+    const char* path;
+} shell_state_t;
+
+shell_state_t shell_state = {0};
+
 
 char *is_in_path(char *cmd);
 bool is_builtin(char *name);

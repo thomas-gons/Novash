@@ -343,6 +343,82 @@ int handle_redirection(cmd_node_t cmd_node) {
     return 0;
 }
 
+void sigint_handler(int sig) {
+    (void)sig;
+    write(STDOUT_FILENO, "\n$ ", 3);
+    fflush(stdout);
+}
+
+void sigchld_handler(int sig) {
+    (void)sig;
+    int status;
+    pid_t pid;
+    char buf[128];
+
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        int n = snprintf(buf, sizeof(buf), "\n[%d] finished with status %d\n$ ", pid, WEXITSTATUS(status));
+        if (n > 0) {
+            write(STDOUT_FILENO, buf, n);
+        }
+    }
+}
+
+int run_child(cmd_node_t cmd_node, runner_f_t runner_f) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        setpgid(0, 0);
+        if (!cmd_node.is_bg) {
+            tcsetpgrp(STDIN_FILENO, getpid());
+        } else {
+            int devnull = open("/dev/null", O_WRONLY);
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            close(devnull);
+        }
+        if (handle_redirection(cmd_node) != 0) _exit(1);
+        runner_f(cmd_node);
+        _exit(0);
+    } else if (pid > 0) {
+        setpgid(pid, pid);
+        if (cmd_node.is_bg) {
+            if (shell_state.bg_tasks_count < MAX_BG_TASKS) {
+                shell_state.bg_tasks[shell_state.bg_tasks_count++] = pid;
+                printf("[%d] %s running in background\n", pid, cmd_node.argv[0]);
+            } else {
+                fprintf(stderr, "Too many background tasks\n");
+            }
+            return 0;
+        }
+        int status;
+        tcsetpgrp(STDIN_FILENO, pid);
+        waitpid(pid, &status, 0);
+        tcsetpgrp(STDIN_FILENO, getpgrp());
+        return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+    } else {
+        perror("fork failed");
+        return -1;
+    }
+}
+
+void builtin_runner(cmd_node_t cmd_node) {
+    builtin_f_t f = get_builtin(cmd_node.argv[0]);
+    int r = f(cmd_node.argc, cmd_node.argv);
+    _exit(r);
+}
+
+void external_cmd_runner(cmd_node_t cmd_node) {
+    char *cmd_path = is_in_path(cmd_node.argv[0]);
+    if (!cmd_path) {
+        fprintf(stderr, "%s: command not found\n", cmd_node.argv[0]);
+        _exit(127);
+    }
+    execv(cmd_path, cmd_node.argv);
+    fprintf(stderr, "%s: %s\n", cmd_node.argv[0], strerror(errno));
+    free(cmd_path);
+    _exit(1);
+}
+
 int exec_node(ast_node_t *ast_node) {
     if (!ast_node)
         return -1;
@@ -377,47 +453,15 @@ int exec_node(ast_node_t *ast_node) {
             if (!cmd) return 0;
 
             if (is_builtin(cmd)) {
-                builtin_f_t f = get_builtin(cmd);
-
-                if (cmd_node.redir_count == 0)
+                if (cmd_node.redir_count == 0) {
+                    builtin_f_t f = get_builtin(cmd);
                     return f(cmd_node.argc, cmd_node.argv);
-                
-                pid_t pid = fork();
-                if (pid == 0) {
-                    if (handle_redirection(cmd_node) != 0) _exit(1);
-                    
-                    r = f(cmd_node.argc, cmd_node.argv);
-                    fprintf(stderr, "%s: %s\n", cmd, strerror(errno));
-                    _exit(r);
-                } else if (pid > 0) {
-                    int status;
-                    waitpid(pid, &status, 0);
-                    r = WIFEXITED(status) ? WEXITSTATUS(status) : 1;
-                } else {
-                    perror("fork failed");
-                    r = -1;
                 }
-                return r;
+                return run_child(cmd_node, builtin_runner);
             }
             
-            char *cmd_path;
-            if ((cmd_path = is_in_path(cmd)) != NULL) {
-                pid_t pid = fork();
-                if (pid == 0) {
-                    if (handle_redirection(cmd_node) != 0) _exit(1);
-
-                    r = execv(cmd_path, cmd_node.argv);
-                    perror("execv failed");
-                    _exit(r);
-                } else if (pid > 0) {
-                    int status;
-                    waitpid(pid, &status, 0);
-                    r = WIFEXITED(status) ? WEXITSTATUS(status) : 1;
-                } else {
-                    perror("fork failed");
-                    r = -1;
-                }
-                free(cmd_path);
+            if ((is_in_path(cmd)) != NULL) {
+                return run_child(cmd_node, external_cmd_runner);
             } else {
                 printf("%s: command not found\n", cmd);
                 r = 127;
@@ -437,7 +481,7 @@ char *is_in_path(char *cmd) {
     char cmd_path[1024];
     struct stat buf;
 
-    char *_p = strdup(PATH);
+    char *_p = strdup(shell_state.path);
 
     for (char *p = _p; (dir = strsep(&p, ":")) != NULL;) {
         snprintf(cmd_path, sizeof(cmd_path), "%s/%s", dir, cmd);
@@ -464,8 +508,8 @@ buitlin_t builtins[] = {
 
 int cd_builtin(int argc, char *argv[]) {
     const char *home = getenv("HOME");
-    char *path = argv[1];
-    int r = chdir(argc == 1 || *path == '~' ? home: path);
+    char *_path = argv[1];
+    int r = chdir(argc == 1 || *_path == '~' ? home: _path);
     return r;
 }
 
@@ -499,7 +543,7 @@ int type_builtin(int argc, char *argv[]) {
     char *cmd = argv[1];
 
     if (is_builtin(cmd)) {
-        printf("%s is a shell builtin\n", cmd);
+        printf("%s is a shell_state builtin\n", cmd);
     } else {
         char *cmd_path = is_in_path(cmd);
         if (cmd_path) {
@@ -531,7 +575,9 @@ builtin_f_t get_builtin(char *name) {
 
 
 int main() {
-    PATH = getenv("PATH");
+    signal(SIGINT, sigint_handler);
+    signal(SIGCHLD, sigchld_handler);
+    shell_state.path = getenv("PATH");
     setbuf(stdout, NULL);
 
     tokenizer_t tz = (tokenizer_t) {
@@ -540,12 +586,10 @@ int main() {
         .length=0,
     };
 
-    int r;
     do {
         tz.pos = 0;
         printf("$ ");
         fgets(tz.input, 1024, stdin);
-
         tz.length = strlen(tz.input);
         tz.input[tz.length - 1] = '\0';
 
@@ -553,8 +597,7 @@ int main() {
         next_token(&tz);
         
         ast_node_t *ast_node = parse_sequence(&tz);
-        r = exec_node(ast_node);
-        printf("%s exits with code %d\n", tz.input, r);
+        exec_node(ast_node);
     } while (*tz.input != '\0');
     return 0;
 }
