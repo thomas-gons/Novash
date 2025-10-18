@@ -225,7 +225,7 @@ ast_node_t *parse_sequence(tokenizer_t *tz) {
     node->seq.nodes = malloc(nodes_cap * sizeof(ast_node_t*));
 
     ast_node_t *next = parse_conditional(tz);
-    while (g_tok.type == TOK_SEMI || g_tok.type == TOK_BG) {
+    do {
         if (node->seq.nodes_count == nodes_cap) {
             nodes_cap *= 2;
             node->seq.nodes = realloc(node->seq.nodes, nodes_cap * sizeof(ast_node_t*));
@@ -234,7 +234,7 @@ ast_node_t *parse_sequence(tokenizer_t *tz) {
 
         next_token(tz);
         next = parse_conditional(tz);
-    }
+    } while (g_tok.type == TOK_SEMI || g_tok.type == TOK_BG);
 
     return node;
 }
@@ -290,6 +290,146 @@ void print_ast(ast_node_t *node, int indent) {
     }
 }
 
+int exec_pipeline(ast_node_t *ast_node) {
+    pipe_node_t pipe_node = ast_node->pipe;
+
+    int fd[2];
+    if (pipe(fd) < 0) {
+        perror("pipe failed");
+        return 1;
+    }
+
+    pid_t pid1 = fork();
+    if (pid1 == 0) {
+        dup2(fd[1], STDOUT_FILENO);
+        close(fd[0]);
+        close(fd[1]);
+        exec_node(pipe_node.left);
+        _exit(1);
+    }
+
+    pid_t pid2 = fork();
+    if (pid2 == 0) {
+        dup2(fd[0], STDIN_FILENO);
+        close(fd[0]);
+        close(fd[1]);
+        exec_node(pipe_node.right);
+        _exit(1);
+    }
+
+    close(fd[0]);
+    close(fd[1]);
+
+    waitpid(pid1, NULL, 0);
+    waitpid(pid2, NULL, 0);
+    return 0;
+}
+
+int handle_redirection(cmd_node_t cmd_node) {
+    int *fd = (int*) malloc(cmd_node.redir_count * sizeof(int));
+    int oflag;
+    for (unsigned i = 0; i < cmd_node.redir_count; i++) {
+        redirection_t redir = cmd_node.redir[i];
+        oflag = (redir.type == REDIR_IN) ?  O_RDONLY:
+                    (redir.type == REDIR_OUT) ? O_WRONLY | O_CREAT | O_TRUNC:
+                                                O_WRONLY | O_CREAT | O_APPEND;
+        
+        fd[i] = open(redir.target, oflag, 0644);
+        if (fd[i] == -1) { perror("open failed"); return 1; }
+        if (dup2(fd[i], redir.fd) == -1) { perror("fd duplication failed"); return 1;}
+
+        close(fd[i]);
+    }
+    return 0;
+}
+
+int exec_node(ast_node_t *ast_node) {
+    if (!ast_node)
+        return -1;
+
+    int r = 0;
+    switch (ast_node->type) {
+        case NODE_SEQUENCE:
+            seq_node_t seq_node = ast_node->seq;
+            for (unsigned i = 0; i < seq_node.nodes_count; i++) {
+                r = exec_node(seq_node.nodes[i]);
+            }
+            return r;
+
+        case NODE_CONDITIONAL:
+            cond_node_t cond_node = ast_node->cond;
+            if (cond_node.op == COND_AND) {
+                r = exec_node(cond_node.left);
+                if (r == 0) r = exec_node(cond_node.right);
+            } else if (cond_node.op == COND_OR) {
+                r = exec_node(cond_node.left);
+                if (r != 0) r = exec_node(cond_node.right);
+            }
+            return r;
+
+        case NODE_PIPELINE:
+            return exec_pipeline(ast_node);
+
+        case NODE_CMD:
+            cmd_node_t cmd_node = ast_node->cmd;
+            char *cmd = ast_node->cmd.argv[0];
+
+            if (!cmd) return 0;
+
+            if (is_builtin(cmd)) {
+                builtin_f_t f = get_builtin(cmd);
+
+                if (cmd_node.redir_count == 0)
+                    return f(cmd_node.argc, cmd_node.argv);
+                
+                pid_t pid = fork();
+                if (pid == 0) {
+                    if (handle_redirection(cmd_node) != 0) _exit(1);
+                    
+                    r = f(cmd_node.argc, cmd_node.argv);
+                    fprintf(stderr, "%s: %s\n", cmd, strerror(errno));
+                    _exit(r);
+                } else if (pid > 0) {
+                    int status;
+                    waitpid(pid, &status, 0);
+                    r = WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+                } else {
+                    perror("fork failed");
+                    r = -1;
+                }
+                return r;
+            }
+            
+            char *cmd_path;
+            if ((cmd_path = is_in_path(cmd)) != NULL) {
+                pid_t pid = fork();
+                if (pid == 0) {
+                    if (handle_redirection(cmd_node) != 0) _exit(1);
+
+                    r = execv(cmd_path, cmd_node.argv);
+                    perror("execv failed");
+                    _exit(r);
+                } else if (pid > 0) {
+                    int status;
+                    waitpid(pid, &status, 0);
+                    r = WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+                } else {
+                    perror("fork failed");
+                    r = -1;
+                }
+                free(cmd_path);
+            } else {
+                printf("%s: command not found\n", cmd);
+                r = 127;
+            }
+
+            return r;
+
+        default:
+            fprintf(stderr, "Unknown AST node type: %d\n", ast_node->type);
+            return -1;
+    }
+}
 
 
 char *is_in_path(char *cmd) {
@@ -394,19 +534,18 @@ int main() {
     PATH = getenv("PATH");
     setbuf(stdout, NULL);
 
-    int argc = 0;
-    char *argv[64];
     tokenizer_t tz = (tokenizer_t) {
         .input=(char *) malloc(1024),
         .pos=0,
         .length=0,
     };
 
+    int r;
     do {
-        memset(tz.input, '\0', 1024);
         tz.pos = 0;
         printf("$ ");
-        fgets(tz.input, 100, stdin);
+        fgets(tz.input, 1024, stdin);
+
         tz.length = strlen(tz.input);
         tz.input[tz.length - 1] = '\0';
 
@@ -414,24 +553,8 @@ int main() {
         next_token(&tz);
         
         ast_node_t *ast_node = parse_sequence(&tz);
-        print_ast(ast_node, 0);
-
-        if (is_builtin(tz.input)) {
-            builtin_f_t builtin_f = get_builtin(tz.input);
-            builtin_f(argc, argv);
-        } else if (is_in_path(tz.input)) {
-            pid_t pid = fork();
-            if (pid == 0) {
-                execv(is_in_path(tz.input), argv);
-                perror("execv failed");
-                exit(1);
-            } else {
-                wait(NULL);
-            }
-        } else {
-            printf("%s: command not found\n", tz.input);
-        }
-        argc = 0;
+        r = exec_node(ast_node);
+        printf("%s exits with code %d\n", tz.input, r);
     } while (*tz.input != '\0');
     return 0;
 }

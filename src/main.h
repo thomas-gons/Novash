@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 #include <ctype.h>
 
 typedef int (*builtin_f_t) (int argc, char *argv[]);
@@ -118,11 +119,14 @@ ast_node_t *parse_pipeline(tokenizer_t *tz);
 ast_node_t *parse_conditional(tokenizer_t *tz);
 ast_node_t *parse_sequence(tokenizer_t *tz);
 
+int handle_redirection(cmd_node_t cmd_node);
+int exec_node(ast_node_t *ast_node);
 
 const char* PATH;
 
 char *is_in_path(char *cmd);
 bool is_builtin(char *name);
+builtin_f_t get_builtin(char *name);
 
 int cd_builtin(int argc, char *argv[]);
 int echo_builtin(int argc, char *argv[]);
