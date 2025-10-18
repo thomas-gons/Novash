@@ -580,18 +580,12 @@ int main() {
     shell_state.path = getenv("PATH");
     setbuf(stdout, NULL);
 
-    tokenizer_t tz = (tokenizer_t) {
-        .input=(char *) malloc(1024),
-        .pos=0,
-        .length=0,
-    };
+    tokenizer_t tz = (tokenizer_t) {0};
 
     do {
         tz.pos = 0;
-        printf("$ ");
-        fgets(tz.input, 1024, stdin);
+        tz.input = readline("$ ");
         tz.length = strlen(tz.input);
-        tz.input[tz.length - 1] = '\0';
 
         g_tok = (token_t){0};
         next_token(&tz);

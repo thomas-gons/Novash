@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <signal.h>
+#include <readline/readline.h>
 
 #define MAX_BG_TASKS 128
 
