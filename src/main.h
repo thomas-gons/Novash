@@ -12,8 +12,12 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <signal.h>
+#include <libgen.h>
+#include <limits.h>
 #include <readline/readline.h>
 
+#define HIST_PATH ".nsh_history"
+#define HIST_SIZE 10
 #define MAX_BG_TASKS 128
 
 typedef int (*builtin_f_t) (int argc, char *argv[]);
@@ -132,11 +136,19 @@ void builtin_runner(cmd_node_t cmd_node);
 void external_cmd_runner(cmd_node_t cmd_node);
 int exec_node(ast_node_t *ast_node);
 
+typedef struct {
+    FILE *fp;
+    char *cmd_list[HIST_SIZE];
+    size_t cmd_count;
+} history_t;
+
 
 typedef struct {
+    const char* path;
+    history_t hist;
+    bool skip_next_history;
     pid_t bg_tasks[MAX_BG_TASKS];
     size_t bg_tasks_count;
-    const char* path;
 } shell_state_t;
 
 shell_state_t shell_state = {0};
@@ -149,8 +161,11 @@ builtin_f_t get_builtin(char *name);
 int cd_builtin(int argc, char *argv[]);
 int echo_builtin(int argc, char *argv[]);
 int exit_builtin(int argc, char *argv[]);
+int history_builtin(int argc, char *argv[]);
 int pwd_builtin(int argc, char *argv[]);
 int type_builtin(int argc, char *argv[]);
 
+void open_history();
+void save_cmd_to_history(char *cmd);
 
 #endif // __MAIN_H__

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(Novash C)
+project(nsh C)
 set(CMAKE_C_STANDARD 23)
 
 file(GLOB SOURCES "src/*.c")
