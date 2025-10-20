@@ -1,5 +1,12 @@
-#include "tokenizer.h"
+/*
+ * Novash — a minimalist shell implementation
+ * Copyright (C) 2025 Thomas Gons
+ *
+ * This file is licensed under the GNU General Public License v3 or later.
+ * See <https://www.gnu.org/licenses/> for details.
+ */
 
+#include "tokenizer.h"
 
 tokenizer_t *tokenizer_new() {
     tokenizer_t *tz = xmalloc(sizeof(tokenizer_t));
