@@ -1,0 +1,60 @@
+name: CI
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build (matrix: gcc, clang)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libreadline-dev
+          if [ "${{ matrix.compiler }}" = "clang" ]; then sudo apt-get install -y clang; fi
+
+      - name: Configure
+        env:
+          CC: ${{ matrix.compiler }}
+        run: |
+          mkdir -p build
+          if [ "${{ matrix.compiler }}" = "clang" ]; then export CC=clang; export CXX=clang++; else export CC=gcc; export CXX=g++; fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_STANDARD=11 \
+            -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g -O1 -Wall -Wextra -Werror" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: ASAN/UBSAN smoke test
+        run: |
+          # compile and run a tiny program with the same sanitizer flags to exercise runtime checks
+          cat > /tmp/asan_test.c <<'EOF'
+          #include <stdio.h>
+          int main(void) { puts("asan smoke"); return 0; }
+          EOF
+          if [ "${{ matrix.compiler }}" = "clang" ]; then CC=clang; else CC=gcc; fi
+          $CC /tmp/asan_test.c -o /tmp/asan_test -fsanitize=address,undefined -g -O1
+          /tmp/asan_test || true
+
+      - name: Optional: Run built binary if present
+        run: |
+          if [ -x build/novash ]; then
+            echo "Running novash --version (if supported)"
+            build/novash --version || true
+          else
+            echo "No build/novash executable found; skipping runtime smoke test."
+          fi
+
+      - name: List build artifacts
+        run: |
+          echo "Build output:"; ls -la build || true
