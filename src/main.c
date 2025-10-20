@@ -378,13 +378,26 @@ void sigchld_handler(int sig) {
     (void)sig;
     int status;
     pid_t pid;
-    char buf[128];
+    char *buf;
+    job_t *jobs = shell_state.jobs;
 
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-        int n = snprintf(buf, sizeof(buf), "\n[%d] finished with status %d\n$ ", pid, WEXITSTATUS(status));
-        if (n > 0) {
-            write(STDOUT_FILENO, buf, n);
+        unsigned job_id;
+        for (unsigned i = 0; i < shell_state.jobs_count; i++) {
+            if (jobs[i].pid == pid) { job_id = i; break; }
         }
+        job_t *job = &jobs[job_id];
+        if (WIFSTOPPED(status)) {
+            job->state = JOB_STOPPED;
+        } else if (WIFSIGNALED(status)) {
+            job->state = JOB_KILLED;
+        } else {
+            job->state = JOB_DONE;
+        }
+        shell_state.running_jobs_count--;
+        buf = job_str(*job, job_id);
+        write(STDOUT_FILENO, buf, strlen(buf));
+        write(STDOUT_FILENO, "$ ", 2);
     }
 }
 
@@ -413,7 +426,8 @@ int run_child(cmd_node_t cmd_node, runner_f_t runner_f) {
                     .state = JOB_RUNNING,
                     .cmd=cmd_node.raw_str,
                 };
-                printf("[%d] %s running in background\n", pid, cmd_node.argv[0]);
+                shell_state.running_jobs_count++;
+                printf("[%ld] %d\n", shell_state.jobs_count, pid);
             } else {
                 fprintf(stderr, "Too many background tasks\n");
             }
@@ -557,24 +571,30 @@ int exit_builtin(int argc, char *argv[]) {
     return 0;
 }
 
-char *state_job_str(job_state_t state) {
-    switch(state) {
-        case JOB_RUNNING: return "running";
-        case JOB_STOPPED: return "stopped";
-        case JOB_DONE: return "done";
-        default: return "unknown";
+char *job_str(job_t job, unsigned job_id) {
+    char *str_state;
+    switch(job.state) {
+        case JOB_RUNNING: str_state = "running"; break;
+        case JOB_DONE: str_state = "done"; break;
+        case JOB_STOPPED: str_state = "stopped"; break;
+        case JOB_KILLED: str_state = "killed"; break;
+        default: return "unknown"; break;
     }
+
+    char *buf;
+    char active_job_char = (job_id == shell_state.jobs_count - 1) ? '+' :
+                       ((job_id == shell_state.jobs_count - 2) ? '-' : ' ');
+
+
+    asprintf(&buf, "[%d] %c %7s %s\n", job_id + 1, active_job_char, str_state, job.cmd);
+    return buf;
 }
 
 int jobs_builtin(int argc, char *argv[]) {
     job_t *jobs = shell_state.jobs;
-    char active_job_char;
-    for (unsigned i = 0; i < shell_state.jobs_count; i++) {
-        active_job_char = (i == shell_state.jobs_count - 1) ? '+':
-                          (i == shell_state.jobs_count - 2) ? '-':
-                          ' ';
-        printf("[%d] %c %7s %s\n", i, active_job_char, state_job_str(jobs[i].state), jobs[i].cmd);
-    }
+    for (unsigned i = 0; i < shell_state.jobs_count; i++)
+        printf("%s", job_str(jobs[i], i));
+    
     return 0;
 }
 
@@ -754,7 +774,7 @@ int main() {
         tz.pos = 0;
         tz.input = readline("$ ");
         if (tz.input == NULL) {
-            if (shell_state.jobs_count > 0 && !warning_exit) {
+            if (shell_state.running_jobs_count > 0 && !warning_exit) {
                 printf("you have running jobs\n");
                 warning_exit = true;
                 continue;
@@ -765,7 +785,6 @@ int main() {
         }
 
         warning_exit = false;
-
         tz.length = strlen(tz.input);
             
         g_tok = (token_t){0};

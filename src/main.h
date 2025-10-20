@@ -161,9 +161,8 @@ typedef struct {
 } history_t;
 
 
-typedef enum { JOB_RUNNING, JOB_STOPPED, JOB_DONE } job_state_t;
+typedef enum { JOB_RUNNING, JOB_DONE, JOB_STOPPED, JOB_KILLED } job_state_t;
 
-char *state_job_str(job_state_t state);
 
 typedef struct {
     pid_t pid;
@@ -171,11 +170,15 @@ typedef struct {
     char *cmd;
 } job_t;
 
+char *job_str(job_t job, unsigned job_id);
+
+
 typedef struct {
     const char* path;
     history_t hist;
     job_t jobs[MAX_JOBS];
     size_t jobs_count;
+    size_t running_jobs_count;
     bool should_exit;
 } shell_state_t;
 
