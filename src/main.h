@@ -40,7 +40,7 @@
 
 #define HIST_PATH ".nsh_history"
 #define HIST_SIZE 10
-#define MAX_BG_TASKS 128
+#define MAX_JOBS 128
 
 typedef int (*builtin_f_t) (int argc, char *argv[]);
 
@@ -71,15 +71,11 @@ typedef struct {
 
 typedef struct {
     char *input;
-    size_t pos;
-    unsigned int length;
+    unsigned pos;
+    size_t length;
 } tokenizer_t;
 
-typedef enum {
-    REDIR_IN,
-    REDIR_OUT,
-    REDIR_APPEND,
-} redirection_e;
+typedef enum { REDIR_IN, REDIR_OUT, REDIR_APPEND } redirection_e;
 
 typedef struct {
     int fd;
@@ -92,6 +88,7 @@ typedef struct {
     char **argv;
     redirection_t *redir;
     size_t redir_count;
+    char *raw_str;
     bool is_bg;
 } cmd_node_t;
 
@@ -100,10 +97,7 @@ typedef struct {
     struct ast_node_t *right;
 } pipe_node_t;
 
-typedef enum {
-    COND_AND,
-    COND_OR
-} cond_op_e;
+typedef enum { COND_AND, COND_OR } cond_op_e;
 
 typedef struct {
     struct ast_node_t *left;
@@ -167,11 +161,21 @@ typedef struct {
 } history_t;
 
 
+typedef enum { JOB_RUNNING, JOB_STOPPED, JOB_DONE } job_state_t;
+
+char *state_job_str(job_state_t state);
+
+typedef struct {
+    pid_t pid;
+    job_state_t state;
+    char *cmd;
+} job_t;
+
 typedef struct {
     const char* path;
     history_t hist;
-    pid_t bg_tasks[MAX_BG_TASKS];
-    size_t bg_tasks_count;
+    job_t jobs[MAX_JOBS];
+    size_t jobs_count;
     bool should_exit;
 } shell_state_t;
 
@@ -185,6 +189,7 @@ builtin_f_t get_builtin(char *name);
 int cd_builtin(int argc, char *argv[]);
 int echo_builtin(int argc, char *argv[]);
 int exit_builtin(int argc, char *argv[]);
+int jobs_builtin(int argc, char *argv[]);
 int history_builtin(int argc, char *argv[]);
 int pwd_builtin(int argc, char *argv[]);
 int type_builtin(int argc, char *argv[]);

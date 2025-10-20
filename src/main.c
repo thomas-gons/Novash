@@ -124,11 +124,12 @@ void next_token(tokenizer_t *tz) {
 ast_node_t *parse_command(tokenizer_t *tz) {
     if (g_tok.type != TOK_WORD) return NULL;
 
+    unsigned raw_str_start = tz->pos - strlen(g_tok.value);
     size_t argv_buf_cap = 64;
     char **argv_buf = (char **) malloc(argv_buf_cap * sizeof(char*));
     unsigned argc = 0;
     while (g_tok.type == TOK_WORD) {
-        argv_buf[argc++] = g_tok.value;
+        argv_buf[argc++] = strdup(g_tok.value);
         next_token(tz);
 
         if (argc == argv_buf_cap) {
@@ -189,6 +190,12 @@ ast_node_t *parse_command(tokenizer_t *tz) {
         }
     }
 
+    size_t raw_str_size = tz->pos - raw_str_start;
+    if (g_tok.type != TOK_EOF) raw_str_size -= strlen(g_tok.value);
+    char *raw_str = (char*) malloc(raw_str_size);
+    memcpy(raw_str, tz->input, raw_str_size);
+    if (raw_str[raw_str_size - 1] == ' ') raw_str[raw_str_size - 1] = '\0';
+
     bool is_bg = g_tok.type == TOK_BG;
 
     ast_node_t *ast_node = (ast_node_t*) malloc(sizeof(ast_node_t));
@@ -197,6 +204,7 @@ ast_node_t *parse_command(tokenizer_t *tz) {
         .argv=argv_buf,
         .redir=redir_buf,
         .redir_count=redir_count,
+        .raw_str=raw_str,
         .is_bg=is_bg
     };
 
@@ -399,8 +407,12 @@ int run_child(cmd_node_t cmd_node, runner_f_t runner_f) {
     } else if (pid > 0) {
         setpgid(pid, pid);
         if (cmd_node.is_bg) {
-            if (shell_state.bg_tasks_count < MAX_BG_TASKS) {
-                shell_state.bg_tasks[shell_state.bg_tasks_count++] = pid;
+            if (shell_state.jobs_count < MAX_JOBS) {
+                shell_state.jobs[shell_state.jobs_count++] = (job_t) {
+                    .pid = pid,
+                    .state = JOB_RUNNING,
+                    .cmd=cmd_node.raw_str,
+                };
                 printf("[%d] %s running in background\n", pid, cmd_node.argv[0]);
             } else {
                 fprintf(stderr, "Too many background tasks\n");
@@ -517,6 +529,7 @@ buitlin_t builtins[] = {
     {"cd", cd_builtin},
     {"echo", echo_builtin},
     {"exit", exit_builtin},
+    {"jobs", jobs_builtin},
     {"history", history_builtin},
     {"pwd", pwd_builtin},
     {"type", type_builtin},
@@ -541,6 +554,27 @@ int echo_builtin(int argc, char *argv[]) {
 
 int exit_builtin(int argc, char *argv[]) {
     shell_state.should_exit = true;
+    return 0;
+}
+
+char *state_job_str(job_state_t state) {
+    switch(state) {
+        case JOB_RUNNING: return "running";
+        case JOB_STOPPED: return "stopped";
+        case JOB_DONE: return "done";
+        default: return "unknown";
+    }
+}
+
+int jobs_builtin(int argc, char *argv[]) {
+    job_t *jobs = shell_state.jobs;
+    char active_job_char;
+    for (unsigned i = 0; i < shell_state.jobs_count; i++) {
+        active_job_char = (i == shell_state.jobs_count - 1) ? '+':
+                          (i == shell_state.jobs_count - 2) ? '-':
+                          ' ';
+        printf("[%d] %c %7s %s\n", i, active_job_char, state_job_str(jobs[i].state), jobs[i].cmd);
+    }
     return 0;
 }
 
@@ -704,17 +738,34 @@ void save_history() {
 
 
 int main() {
+    signal(SIGTTOU, SIG_IGN);
+    signal(SIGTTIN, SIG_IGN);
     signal(SIGINT, sigint_handler);
     signal(SIGCHLD, sigchld_handler);
+    tcsetpgrp(STDIN_FILENO, getpgrp());
     shell_state.path = getenv("PATH");
     load_history();
     setbuf(stdout, NULL);
 
     tokenizer_t tz = (tokenizer_t) {0};
 
+    bool warning_exit = false;
     do {
         tz.pos = 0;
         tz.input = readline("$ ");
+        if (tz.input == NULL) {
+            if (shell_state.jobs_count > 0 && !warning_exit) {
+                printf("you have running jobs\n");
+                warning_exit = true;
+                continue;
+            } else {
+                printf("exit\n");
+                break;
+            }
+        }
+
+        warning_exit = false;
+
         tz.length = strlen(tz.input);
             
         g_tok = (token_t){0};
@@ -725,8 +776,7 @@ int main() {
 
         exec_node(ast_node);
         
-        
-    } while (*tz.input != '\0' && !shell_state.should_exit);
+    } while (!shell_state.should_exit);
     save_history();
     return 0;
 }
