@@ -495,13 +495,13 @@ int exec_node(ast_node_t *ast_node) {
 
 char *is_in_path(char *cmd) {
     char *dir;
-    char cmd_path[1024];
+    char *cmd_path;
     struct stat buf;
 
     char *_p = strdup(shell_state.path);
 
     for (char *p = _p; (dir = strsep(&p, ":")) != NULL;) {
-        snprintf(cmd_path, sizeof(cmd_path), "%s/%s", dir, cmd);
+        asprintf(&cmd_path, "%s/%s", dir, cmd);
         if (stat(cmd_path, &buf) == 0 && buf.st_mode & S_IXUSR) {
             free(_p);
             return strdup(cmd_path);
@@ -540,16 +540,17 @@ int echo_builtin(int argc, char *argv[]) {
 }
 
 int exit_builtin(int argc, char *argv[]) {
-    int code = atoi(argv[1]);
-    exit(code);
+    shell_state.should_exit = true;
     return 0;
 }
 
 int history_builtin(int argc, char *argv[]) {
     history_t *hist = &shell_state.hist;
     if (argc == 1) {
-        for (unsigned i = 0; i < hist->cmd_count; i++)
-            printf("%s\n", hist->cmd_list[i]);
+        for (unsigned i = 0; i < hist->cmd_count; i++) {
+            unsigned idx = (hist->start + i) % HIST_SIZE;
+            printf("%u  %s\n", i+1, hist->cmd_list[idx]);
+        }
     } else {
         if (strcmp(argv[1], "-c") == 0) {
             for (unsigned i = 0; i < hist->cmd_count; i++) {
@@ -558,12 +559,7 @@ int history_builtin(int argc, char *argv[]) {
             }
 
             hist->cmd_count = 0;
-            
-            if (hist->fp) {
-                freopen(NULL, "w", hist->fp);
-                fflush(hist->fp);
-                shell_state.skip_next_history = true;
-            }
+            hist->start = 0;
         }
 
     }
@@ -619,7 +615,6 @@ builtin_f_t get_builtin(char *name) {
 char *get_history_path() {
     char exe[PATH_MAX];
     ssize_t len = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
-    printf("%s", exe);
     if (len == -1) return strdup(HIST_PATH);
     exe[len] = '\0';
 
@@ -628,66 +623,110 @@ char *get_history_path() {
     char *last = strrchr(dir, '/');
     if (last && strcmp(last + 1, "build") == 0) *last = '\0';
 
-    size_t n = strlen(dir) + 1 + strlen(HIST_PATH) + 1;
-    char *path = malloc(n);
-    snprintf(path, n, "%s/%s", dir, HIST_PATH);
+    char *path;
+    asprintf(&path, "%s/%s", dir, HIST_PATH);
     return path;
 }
 
-void open_history() {
-    FILE *fp = fopen(get_history_path(), "a+");
-    if (!fp) { perror("open failed"); exit(1);}
-    
-    history_t *hist = &shell_state.hist;
-    hist->fp = fp;
+void load_history() {
     char line[1024];
 
-    rewind(fp);
-
-    while (fgets(line, sizeof(line), fp)) {
-        line[strcspn(line, "\n")] = '\0';
-        hist->cmd_list[hist->cmd_count++] = strdup(line);
+    history_t *hist = &shell_state.hist;
+    
+    hist->fp = fopen(get_history_path(), "a+");
+    if (!hist->fp) {
+        perror("fopen");
+        exit(1);
     }
+    rewind(hist->fp);
 
+    while (fgets(line, sizeof(line), hist->fp)) {
+        char *sep = strchr(line, ';');
+        if (!sep) continue;
+        *sep = '\0';
+        time_t ts = atol(line + 2);
+        char *cmd = sep + 1;
+        cmd[strcspn(cmd, "\n")] = 0;
+
+        if (hist->cmd_count < HIST_SIZE) {
+            hist->cmd_list[hist->cmd_count] = strdup(cmd);
+            hist->timestamps[hist->cmd_count] = ts;
+            hist->cmd_count++;
+        } else {
+            free(hist->cmd_list[hist->start]);
+            hist->cmd_list[hist->start] = strdup(cmd);
+            hist->timestamps[hist->start] = ts;
+            hist->start = (hist->start + 1) % HIST_SIZE;
+        }
+    }
 }
 
-void save_cmd_to_history(char *cmd) {
-    if (*cmd == '\0' || *cmd == '\n') return;
-    
-    char buf[1024];
+void save_cmd_to_history(const char *cmd) {
+    if (!cmd || !*cmd) return;
+
+    time_t now = time(NULL);
+    unsigned idx;
     history_t *hist = &shell_state.hist;
 
-    snprintf(buf, sizeof(buf), "%ld. %s\n", hist->cmd_count, cmd);
-    fwrite(buf, strlen(buf), 1, hist->fp);
+    if (hist->cmd_count < HIST_SIZE) {
+        idx = hist->cmd_count++;
+    } else {
+        idx = hist->start;
+        free(hist->cmd_list[idx]);
+        hist->start = (hist->start + 1) % HIST_SIZE;
+    }
+
+    hist->cmd_list[idx] = strdup(cmd);
+    hist->timestamps[idx] = now;
+
+    fprintf(hist->fp, "%ld;%s\n", now, cmd);
     fflush(hist->fp);
-    hist->cmd_count++;
+}
+
+void save_history() {
+    history_t *hist = &shell_state.hist;
+
+    if (hist->cmd_count < HIST_SIZE) {
+        return;
+    }
+
+    FILE *hist_write_fp = fopen(get_history_path(), "w+");
+    if (!hist_write_fp) { perror("open failed"); exit(1); }
+
+    unsigned index = 0;
+    unsigned hist_end = HIST_SIZE + hist->start;
+    for (unsigned i = hist->start; i < hist_end; i++) {
+        index = i % HIST_SIZE;
+        fprintf(hist_write_fp, "%ld;%s\n", hist->timestamps[index], hist->cmd_list[index]);
+    }
+    fclose(hist_write_fp);
 }
 
 
 int main() {
-    printf("%s", __FILE__);
     signal(SIGINT, sigint_handler);
     signal(SIGCHLD, sigchld_handler);
     shell_state.path = getenv("PATH");
-    open_history();
+    load_history();
     setbuf(stdout, NULL);
 
     tokenizer_t tz = (tokenizer_t) {0};
 
     do {
-        shell_state.skip_next_history = false;
         tz.pos = 0;
         tz.input = readline("$ ");
         tz.length = strlen(tz.input);
-
+            
         g_tok = (token_t){0};
         next_token(&tz);
         
         ast_node_t *ast_node = parse_sequence(&tz);
+        save_cmd_to_history(tz.input);
+
         exec_node(ast_node);
-        if (!shell_state.skip_next_history)
-            save_cmd_to_history(tz.input);
         
-    } while (*tz.input != '\0');
+        
+    } while (*tz.input != '\0' && !shell_state.should_exit);
+    save_history();
     return 0;
 }

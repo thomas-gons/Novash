@@ -30,7 +30,7 @@ The goal is to implement, from scratch the essential components of a modern UNIX
 
 ## Command Line navigation
 
-- [ ] integrate GNU Readline or linenoise for input handling, history search and completion
+- [ ] Integrate GNU Readline or linenoise for input handling, history search and completion
 
 ### History
 

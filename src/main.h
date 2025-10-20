@@ -19,6 +19,8 @@
 #ifndef __MAIN_H__
 #define __MAIN_H__
 
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,7 +34,9 @@
 #include <signal.h>
 #include <libgen.h>
 #include <limits.h>
+#include <time.h>
 #include <readline/readline.h>
+
 
 #define HIST_PATH ".nsh_history"
 #define HIST_SIZE 10
@@ -155,18 +159,20 @@ void external_cmd_runner(cmd_node_t cmd_node);
 int exec_node(ast_node_t *ast_node);
 
 typedef struct {
-    FILE *fp;
     char *cmd_list[HIST_SIZE];
+    time_t timestamps[HIST_SIZE];
     size_t cmd_count;
+    unsigned start;
+    FILE *fp;
 } history_t;
 
 
 typedef struct {
     const char* path;
     history_t hist;
-    bool skip_next_history;
     pid_t bg_tasks[MAX_BG_TASKS];
     size_t bg_tasks_count;
+    bool should_exit;
 } shell_state_t;
 
 shell_state_t shell_state = {0};
@@ -183,7 +189,8 @@ int history_builtin(int argc, char *argv[]);
 int pwd_builtin(int argc, char *argv[]);
 int type_builtin(int argc, char *argv[]);
 
-void open_history();
-void save_cmd_to_history(char *cmd);
+void load_history();
+void save_cmd_to_history(const char *cmd);
+void save_history();
 
 #endif // __MAIN_H__
