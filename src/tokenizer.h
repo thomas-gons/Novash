@@ -47,7 +47,6 @@ typedef struct {
     size_t length;
 } tokenizer_t;
 
-extern token_t g_tok;
 
 /**
  * create a new tokenizer

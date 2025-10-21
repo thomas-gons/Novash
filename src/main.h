@@ -29,12 +29,8 @@
 #include "tokenizer.h"
 #include "parser.h"
 #include "builtin.h"
+#include "shell_state.h"
 #include "utils.h"
-
-
-#define HIST_PATH ".nsh_history"
-#define HIST_SIZE 10
-#define MAX_JOBS 128
 
 typedef int (*builtin_f_t) (int argc, char *argv[]);
 
@@ -67,38 +63,9 @@ void external_cmd_runner(cmd_node_t cmd_node);
 int exec_pipeline(ast_node_t *ast_node);
 int exec_node(ast_node_t *ast_node);
 
-typedef struct {
-    char *cmd_list[HIST_SIZE];
-    time_t timestamps[HIST_SIZE];
-    size_t cmd_count;
-    unsigned start;
-    FILE *fp;
-} history_t;
 
-
-typedef enum { JOB_RUNNING, JOB_DONE, JOB_STOPPED, JOB_KILLED } job_state_t;
-
-
-typedef struct {
-    pid_t pid;
-    job_state_t state;
-    char *cmd;
-} job_t;
 
 char *job_str(job_t job, unsigned job_id);
-
-
-typedef struct {
-    const char* path;
-    history_t hist;
-    job_t jobs[MAX_JOBS];
-    size_t jobs_count;
-    size_t running_jobs_count;
-    bool should_exit;
-} shell_state_t;
-
-shell_state_t shell_state = {0};
-
 
 char *is_in_path(char *cmd);
 
