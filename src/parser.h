@@ -11,6 +11,7 @@
 
 #include "tokenizer.h"
 #include "utils.h"
+#include <assert.h>
 
 
 // Forward declaration of the global token

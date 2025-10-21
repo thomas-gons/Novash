@@ -452,21 +452,22 @@ void save_history() {
 }
 
 int main() {
-    tokenizer_t *tz = tokenizer_new();
     signal(SIGTTOU, SIG_IGN);
     signal(SIGTTIN, SIG_IGN);
     signal(SIGINT, sigint_handler);
     signal(SIGCHLD, sigchld_handler);
     tcsetpgrp(STDIN_FILENO, getpgrp());
     shell_state.path = getenv("PATH");
-    load_history();
+    //load_history();
+
     setbuf(stdout, NULL);
+    tokenizer_t *tz = tokenizer_new();
+    char *input = NULL;
 
     bool warning_exit = false;
     do {
-        tz->pos = 0;
-        tz->input = readline("$ ");
-        if (tz->input == NULL) {
+        input = readline("$ ");
+        if (input == NULL) {
             if (shell_state.running_jobs_count > 0 && !warning_exit) {
                 printf("you have running jobs\n");
                 warning_exit = true;
@@ -478,14 +479,17 @@ int main() {
         }
 
         warning_exit = false;
-        tz->length = strlen(tz->input);
+        tokenizer_init(tz, input);
             
         ast_node_t *ast_node = parser_create_ast(tz);
-        save_cmd_to_history(tz->input);
+        //save_cmd_to_history(tz->input);
 
-        exec_node(ast_node);
+        //exec_node(ast_node);
+        parser_free_ast(ast_node);
+        free(input);
         
     } while (!shell_state.should_exit);
+    tokenizer_free(tz);
     save_history();
     return 0;
 }
