@@ -16,7 +16,8 @@ token_t g_tok = {.type=TOK_EOF, .value=NULL};
  * @param tz pointer to the tokenizer
  */
 static inline void next_token(tokenizer_t *tz) {
-    g_tok = tokenizer_next(tz);
+    tokenizer_free_token(&g_tok);
+    g_tok = tokenizer_next_token(tz);
 }
 
 /**
@@ -142,11 +143,8 @@ static ast_node_t *parse_command(tokenizer_t *tz) {
     size_t redir_count = parse_redirection(tz, redir_buf, redir_buf_cap);
 
     size_t raw_str_size = tz->pos - raw_str_start;
-    // since the tokenizer stops on a token outside the command,
-    // it must be removed if it is not the end of the file 
-    if (g_tok.type != TOK_EOF) {
-        raw_str_size -= strlen(g_tok.value);
-    } 
+    // since the tokenizer stops on a token outside the command,it must be removed
+    raw_str_size -= g_tok.raw_length;
     char *raw_str = xmalloc(raw_str_size);
     memcpy(raw_str, tz->input, raw_str_size);
     // strip the trailing space if present
@@ -206,7 +204,7 @@ static ast_node_t *parse_conditional(tokenizer_t *tz) {
         node->type = NODE_CONDITIONAL;
         node->cond.left = left;
         node->cond.right = right;
-        node->cond.op = op; 
+        node->cond.op = op;
         left = node;
     }
     return left;
@@ -214,30 +212,43 @@ static ast_node_t *parse_conditional(tokenizer_t *tz) {
 
 ast_node_t *parser_create_ast(tokenizer_t *tz) {
     next_token(tz);
-    ast_node_t *node = xmalloc(sizeof(ast_node_t));
+
+    if (g_tok.type == TOK_EOF) {
+        // g_tok.value is empty no need to free memory
+        return NULL;
+    }
+
+    ast_node_t *root_node = xmalloc(sizeof(ast_node_t));
     
     // Initial allocation for dynamic array of sequence nodes
     size_t nodes_cap = 16;
-    node->type = NODE_SEQUENCE;
-    node->seq.nodes_count = 0;
-    node->seq.nodes = xmalloc(nodes_cap * sizeof(ast_node_t*));
-
-    ast_node_t *next = parse_conditional(tz);
+    root_node->type = NODE_SEQUENCE;
+    root_node->seq.nodes_count = 0;
+    root_node->seq.nodes = xmalloc(nodes_cap * sizeof(ast_node_t*));
 
     // using do-while to ensure at least the first node is added
     do {
-        // Resize the nodes array if necessary
-        if (node->seq.nodes_count == nodes_cap) {
-            nodes_cap *= 2;
-            node->seq.nodes = xrealloc(node->seq.nodes, nodes_cap * sizeof(ast_node_t*));
+        ast_node_t *next_command = parse_conditional(tz);
+        if (next_command == NULL) {
+            break;
         }
-        node->seq.nodes[node->seq.nodes_count++] = next;
 
-        next_token(tz);
-        next = parse_conditional(tz);
-    } while (g_tok.type == TOK_SEMI || g_tok.type == TOK_BG);
+        // Resize the nodes array if necessary
+        if (root_node->seq.nodes_count == nodes_cap) {
+            nodes_cap *= 2;
+            root_node->seq.nodes = xrealloc(root_node->seq.nodes, nodes_cap * sizeof(ast_node_t*));
+        }
+        root_node->seq.nodes[root_node->seq.nodes_count++] = next_command;
 
-    return node;
+        if (g_tok.type == TOK_SEMI || g_tok.type == TOK_BG) {
+            next_token(tz);
+        }
+    } while (g_tok.type != TOK_EOF);
+
+    assert(g_tok.type == TOK_EOF);
+    tokenizer_free_token(&g_tok);
+    
+    return root_node;
 }
 
 void parser_free_ast(ast_node_t *node) {
@@ -269,9 +280,12 @@ void parser_free_ast(ast_node_t *node) {
             for (size_t i = 0; i < node->seq.nodes_count; i++) {
                 parser_free_ast(node->seq.nodes[i]);
             }
+            free(node->seq.nodes);
+            break; 
         default:
             return;
     }
+    free(node);
 }
 
 void print_ast(ast_node_t *node, int indent) {

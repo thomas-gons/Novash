@@ -16,10 +16,23 @@ tokenizer_t *tokenizer_new() {
     return tz;
 }
 
+void tokenizer_init(tokenizer_t *tz, char *input) {
+    tz->input = xstrdup(input);
+    tz->pos = 0;
+    tz->length = strlen(input);
+}
+
 void tokenizer_free(tokenizer_t *tz) {
     if (tz) {
         if (tz->input) free(tz->input);
         free(tz);
+    }
+}
+
+void tokenizer_free_token(token_t *tok) {
+    if (tok && tok->value) {
+        free(tok->value);
+        tok->value = NULL;
     }
 }
 
@@ -62,17 +75,20 @@ static void skip_whitespaces(tokenizer_t *tz) {
 static bool is_metachar(char c) {
     return (c == '|' || c == '&' || c == ';' || c == '<' || c == '>');
 }
-
 /**
- * handle word token extraction
- * @param tz pointer to the tokenizer
- * @return extracted word token string
+ * @brief Extracts a word token, handling nested single ('') and double ("") quotes.
+ * Quotes are consumed from the input stream and *removed* from the resulting 'buf', 
+ * but are included in the 'raw_length' count. Extraction stops upon 
+ * unquoted whitespace or an unquoted metacharacter.
+ *
+ * @param tz Pointer to the tokenizer state.
+ * @param buf Buffer to store the processed (unquoted) word value.
+ * @param buf_cap Initial capacity of the buffer.
+ * @return The total **raw length** (including quotes) of the word consumed.
  */
-static char *handle_word_token(tokenizer_t *tz) {
-
-    size_t buf_cap = 64;
-    char *buf = xmalloc(buf_cap);
+static size_t handle_word_token(tokenizer_t *tz, char *buf, size_t buf_cap) {
     size_t length = 0;
+    size_t raw_length = 0;
 
     // flags for single and double quotes
     bool in_sq = false, in_dq = false;
@@ -80,59 +96,63 @@ static char *handle_word_token(tokenizer_t *tz) {
     char c;
     // loop until reaching end of input, whitespace, or metacharacter
     while ((c = peek(tz)) != '\0') {
-        if (c == '\'' && !in_dq) { in_sq = !in_sq; advance(tz); continue; }
-        if (c == '\"' && !in_sq) { in_dq = !in_dq; advance(tz); continue; }
+        if (c == '\'' && !in_dq) { in_sq = !in_sq; advance(tz); raw_length++; continue; }
+        if (c == '\"' && !in_sq) { in_dq = !in_dq; advance(tz); raw_length++; continue; }
         if (!in_sq && !in_dq && ((c == ' ' || c == '\t') || is_metachar(c))) break;
         
         // resize buffer if needed (double its size)
         if (length == buf_cap) { buf_cap *= 2; buf = (char*) xrealloc(buf, buf_cap);}
         buf[length++] = advance(tz);
+        raw_length++;
     }
 
     // if buffer is full, expand it by one for null terminator
     if (length == buf_cap) { buf_cap++; buf = (char*) xrealloc(buf, buf_cap);}
     buf[length] = '\0';
 
-    return buf;
+    return raw_length;
 }
 
-token_t tokenizer_next(tokenizer_t *tz) {
+token_t tokenizer_next_token(tokenizer_t *tz) {
 
     skip_whitespaces(tz);
     char c = peek(tz);
     switch (c) {
         case '|': {
             advance(tz);
-            if (peek(tz) == '|') { advance(tz); return (token_t){TOK_OR, NULL}; }
-            else return (token_t){TOK_PIPE, NULL};
+            if (peek(tz) == '|') { advance(tz); return (token_t){TOK_OR, NULL, 2}; }
+            else return (token_t){TOK_PIPE, NULL, 1};
         }
         case '&': {
             advance(tz);
-            if (peek(tz) == '&') { advance(tz); return (token_t){TOK_AND, NULL}; }
-            else return (token_t){TOK_BG, "&"};
+            if (peek(tz) == '&') { advance(tz); return (token_t){TOK_AND, NULL, 2}; }
+            else return (token_t){TOK_BG, NULL, 1};
         }
         case '>': {
             advance(tz);
-            if (peek(tz) == '>') { advance(tz); return (token_t){TOK_REDIR_APPEND, NULL}; }
-            else return (token_t){TOK_REDIR_OUT, NULL};
+            if (peek(tz) == '>') { advance(tz); return (token_t){TOK_REDIR_APPEND, NULL, 2}; }
+            else return (token_t){TOK_REDIR_OUT, NULL, 1};
         }
-        case '<': { advance(tz); return (token_t){TOK_REDIR_IN, NULL}; }
-        case ';': { advance(tz); return (token_t) {TOK_SEMI, NULL}; }
-        case '\0': { advance(tz); return (token_t) {TOK_EOF, NULL}; }
+        case '<': { advance(tz); return (token_t){TOK_REDIR_IN, NULL, 1}; }
+        case ';': { advance(tz); return (token_t) {TOK_SEMI, NULL, 1}; }
+        case '\0': { advance(tz); return (token_t) {TOK_EOF, NULL, 0}; }
         default: {
-            char *word = handle_word_token(tz);
+            
+            size_t buf_cap = 64;
+            char *buf = xmalloc(buf_cap);
+            size_t raw_length = handle_word_token(tz, buf, buf_cap);
 
-            // the word might be a file descriptor if it's all digits
+            // Check for File Descriptor (FD) token:
+            // An FD is recognized only if the token is a bare, unquoted number
+            // immediately preceding a redirection metacharacter (< or >).
             char *end;
-            strtol(word, &end, 10);
-            if (*end == '\0') {
+            strtol(buf, &end, 10);
+            if (*end == '\0' && strlen(buf) == raw_length) {
                 c = peek(tz);
-                // ensure next char is a redirection metacharacter
-                // only n>, n< or n>> are valid fd tokens
-                if (c == '>' || c == '<') return (token_t) {TOK_FD, word};
+                if (c == '>' || c == '<') return (token_t) {TOK_FD, buf, raw_length};
             }
             
-            return (token_t) {TOK_WORD, word}; 
+            return (token_t) {TOK_WORD, buf, raw_length}; 
         }
     }
 }
