@@ -9,13 +9,11 @@
 #ifndef __PARSER_H__
 #define __PARSER_H__
 
+#include <assert.h>
+#include "collections.h"
 #include "tokenizer.h"
 #include "utils.h"
-#include <assert.h>
 
-
-// Forward declaration of the global token
-extern token_t g_tok;
 
 typedef enum { REDIR_IN, REDIR_OUT, REDIR_APPEND } redirection_e;
 
@@ -38,8 +36,7 @@ typedef struct {
 typedef struct {
     int argc;                  /**<  Number of arguments in argv. */
     char **argv;               /**<  Argument vector (command and its arguments, NULL-terminated). */
-    redirection_t *redir;
-    size_t redir_count;
+    dynarray_t *redir;
     char *raw_str;             /**<  Original command string for reference. */
     bool is_bg;                /**<  Indicates if the command will run in the background. */
 } cmd_node_t;

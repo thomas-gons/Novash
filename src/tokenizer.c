@@ -157,7 +157,6 @@ token_t tokenizer_next_token(tokenizer_t *tz) {
     }
 }
 
-
 size_t tokenizer_token_str(token_t tok, char *buf, size_t buf_sz) {
     char *fixed = NULL;
     char *fmt = NULL;

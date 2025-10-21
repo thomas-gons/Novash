@@ -9,7 +9,7 @@
 #include "parser.h"
 
 
-token_t g_tok = {.type=TOK_EOF, .value=NULL};
+static token_t g_tok = {.type=TOK_EOF, .value=NULL};
 
 /**
  * @brief Simple wrapper to get the next token from the tokenizer
@@ -66,33 +66,33 @@ static size_t parse_arguments(tokenizer_t *tz, char **argv_buf, size_t argv_buf_
  * @throw exit the program if the redirection is malformed
  * @return Number of parsed redirections.
  */
-static size_t parse_redirection(tokenizer_t *tz, redirection_t *redir_buf, size_t redir_buf_cap) {
-    size_t redir_count = 0;
-    
+static void parse_redirection(tokenizer_t *tz, dynarray_t *redir_buf) {
+
     // parse redirections that should appear as : [FD] REDIR_TYPE FILENAME
     while (g_tok.type == TOK_FD || g_tok.type == TOK_REDIR_IN || 
-       g_tok.type == TOK_REDIR_OUT || g_tok.type == TOK_REDIR_APPEND) {
-        redirection_t redir = {0};
+           g_tok.type == TOK_REDIR_OUT || g_tok.type == TOK_REDIR_APPEND)
+    {
+        redirection_t *redir = xmalloc(sizeof(redirection_t));
 
         if (g_tok.type == TOK_FD) {
             // no need to check for errors here as tokenizer would have handled it
-            redir.fd = (int) strtol(g_tok.value, NULL, 10);
+            redir->fd = (int) strtol(g_tok.value, NULL, 10);
             next_token(tz);
         }
 
         // determine redirection type and set default fd if not specified
         switch (g_tok.type) {
             case TOK_REDIR_IN: 
-                redir.type = REDIR_IN;
+                redir->type = REDIR_IN;
                 break;
             case TOK_REDIR_OUT: {
-                redir.type = REDIR_OUT;
-                if (redir.fd == 0) redir.fd = 1;
+                redir->type = REDIR_OUT;
+                if (redir->fd == 0) redir->fd = 1;
                 break;
             }
             case TOK_REDIR_APPEND: {
-                redir.type = REDIR_APPEND;
-                if (redir.fd == 0) redir.fd = 1;
+                redir->type = REDIR_APPEND;
+                if (redir->fd == 0) redir->fd = 1;
                 break;
             }
             default:
@@ -108,18 +108,10 @@ static size_t parse_redirection(tokenizer_t *tz, redirection_t *redir_buf, size_
         }
 
         // same reason as argv, need to xstrdup
-        redir.target = xstrdup(g_tok.value);
-        redir_buf[redir_count++] = redir;
-
+        redir->target = xstrdup(g_tok.value);
+        dynarray_push(redir_buf, redir);
         next_token(tz);
-
-        // resize redirection array if necessary
-        if (redir_count == redir_buf_cap) {
-            redir_buf_cap *= 2;
-            redir_buf = xrealloc(redir_buf, redir_buf_cap * sizeof(redirection_t));
-        }
     }
-    return redir_count;
 } 
 
 /**
@@ -138,9 +130,8 @@ static ast_node_t *parse_command(tokenizer_t *tz) {
     char **argv_buf = xmalloc(argv_buf_cap * sizeof(char*));
     size_t argc = parse_arguments(tz, argv_buf, argv_buf_cap);    
 
-    size_t redir_buf_cap = 16;
-    redirection_t *redir_buf = xmalloc(redir_buf_cap * sizeof(redirection_t));
-    size_t redir_count = parse_redirection(tz, redir_buf, redir_buf_cap);
+    dynarray_t *redir_buf = dynarray_new(16);
+    parse_redirection(tz, redir_buf);
 
     size_t raw_str_size = tz->pos - raw_str_start;
     // since the tokenizer stops on a token outside the command,it must be removed
@@ -157,7 +148,6 @@ static ast_node_t *parse_command(tokenizer_t *tz) {
         .argc=(int) argc,
         .argv=argv_buf,
         .redir=redir_buf,
-        .redir_count=redir_count,
         .raw_str=raw_str,
         .is_bg=is_bg
     };
@@ -263,8 +253,8 @@ void parser_free_ast(ast_node_t *node) {
                 free(cmd.argv[i]);
             }
             free(cmd.argv);
-            for (size_t i = 0; i < cmd.redir_count; i++) {
-                free(cmd.redir[i].target);
+            for (size_t i = 0; i < cmd.redir->size; i++) {
+                free(((redirection_t*)cmd.redir->data[i])->target);
             }
             free(cmd.redir);
             free(cmd.raw_str);
@@ -302,10 +292,10 @@ void print_ast(ast_node_t *node, int indent) {
                 printf(" %s", node->cmd.argv[i]);
 
             // print redirections if any
-            if (node->cmd.redir_count > 0) {
+            if (node->cmd.redir->size > 0) {
                 printf(" [");
-                for (size_t i = 0; i < node->cmd.redir_count; i++) {
-                    redirection_t *r = &node->cmd.redir[i];
+                for (size_t i = 0; i < node->cmd.redir->size; i++) {
+                    redirection_t *r = node->cmd.redir->data[i];
                     printf("%d", r->fd);
                     switch (r->type) {
                         case REDIR_IN: printf("<"); break;
@@ -313,7 +303,7 @@ void print_ast(ast_node_t *node, int indent) {
                         case REDIR_APPEND: printf(">>"); break;
                     }
                     printf("%s", r->target);
-                    if (i < node->cmd.redir_count - 1) printf(", ");
+                    if (i < node->cmd.redir->size - 1) printf(", ");
                 }
                 printf("]");
             }
@@ -345,4 +335,3 @@ void print_ast(ast_node_t *node, int indent) {
             break;
     }
 }
-

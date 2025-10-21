@@ -45,17 +45,17 @@ int exec_pipeline(ast_node_t *ast_node) {
 }
 
 int handle_redirection(cmd_node_t cmd_node) {
-    int *fd = xmalloc(cmd_node.redir_count * sizeof(int));
+    int *fd = xmalloc(cmd_node.redir->size * sizeof(int));
     int oflag;
-    for (unsigned i = 0; i < cmd_node.redir_count; i++) {
-        redirection_t redir = cmd_node.redir[i];
-        oflag = (redir.type == REDIR_IN) ?  O_RDONLY:
-                    (redir.type == REDIR_OUT) ? O_WRONLY | O_CREAT | O_TRUNC:
+    for (unsigned i = 0; i < cmd_node.redir->size; i++) {
+        redirection_t *redir = cmd_node.redir->data[i];
+        oflag = (redir->type == REDIR_IN) ?  O_RDONLY:
+                    (redir->type == REDIR_OUT) ? O_WRONLY | O_CREAT | O_TRUNC:
                                                 O_WRONLY | O_CREAT | O_APPEND;
         
-        fd[i] = open(redir.target, oflag, 0644);
+        fd[i] = open(redir->target, oflag, 0644);
         if (fd[i] == -1) { perror("open failed"); return 1; }
-        if (dup2(fd[i], redir.fd) == -1) { perror("fd duplication failed"); return 1;}
+        if (dup2(fd[i], redir->fd) == -1) { perror("fd duplication failed"); return 1;}
 
         close(fd[i]);
     }
@@ -73,11 +73,12 @@ void sigchld_handler(int sig) {
     int status;
     pid_t pid;
     char *buf;
-    job_t *jobs = shell_state.jobs;
+    shell_state_t *shell_state = shell_state_get();
+    job_t *jobs = shell_state->jobs;
 
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
         unsigned job_id = 0;
-        for (unsigned i = 0; i < shell_state.jobs_count; i++) {
+        for (unsigned i = 0; i < shell_state->jobs_count; i++) {
             if (jobs[i].pid == pid) { job_id = i; break; }
         }
         job_t *job = &jobs[job_id];
@@ -88,7 +89,7 @@ void sigchld_handler(int sig) {
         } else {
             job->state = JOB_DONE;
         }
-        shell_state.running_jobs_count--;
+        shell_state->running_jobs_count--;
         buf = job_str(*job, job_id);
         write(STDOUT_FILENO, buf, strlen(buf));
         write(STDOUT_FILENO, "$ ", 2);
@@ -96,6 +97,7 @@ void sigchld_handler(int sig) {
 }
 
 int run_child(cmd_node_t cmd_node, runner_f_t runner_f) {
+    shell_state_t *shell_state = shell_state_get();
     pid_t pid = fork();
 
     if (pid == 0) {
@@ -114,14 +116,14 @@ int run_child(cmd_node_t cmd_node, runner_f_t runner_f) {
     } else if (pid > 0) {
         setpgid(pid, pid);
         if (cmd_node.is_bg) {
-            if (shell_state.jobs_count < MAX_JOBS) {
-                shell_state.jobs[shell_state.jobs_count++] = (job_t) {
+            if (shell_state->jobs_count < MAX_JOBS) {
+                shell_state->jobs[shell_state->jobs_count++] = (job_t) {
                     .pid = pid,
                     .state = JOB_RUNNING,
                     .cmd=cmd_node.raw_str,
                 };
-                shell_state.running_jobs_count++;
-                printf("[%ld] %d\n", shell_state.jobs_count, pid);
+                shell_state->running_jobs_count++;
+                printf("[%ld] %d\n", shell_state->jobs_count, pid);
             } else {
                 fprintf(stderr, "Too many background tasks\n");
             }
@@ -190,7 +192,7 @@ int exec_node(ast_node_t *ast_node) {
             if (!cmd) return 0;
 
             if (builtin_is_builtin(cmd)) {
-                if (cmd_node.redir_count == 0) {
+                if (cmd_node.redir->size == 0) {
                     builtin_f_t f = builtin_get_function(cmd);
                     return f(cmd_node.argc, cmd_node.argv);
                 }
@@ -212,13 +214,14 @@ int exec_node(ast_node_t *ast_node) {
     }
 }
 
-
 char *is_in_path(char *cmd) {
     char *dir;
     char *cmd_path;
     struct stat buf;
 
-    char *_p = xstrdup(shell_state.path);
+    shell_state_t *shell_state = shell_state_get();
+    char *path = hashmap_get(shell_state->envp, "PATH");
+    char *_p = xstrdup(path);
 
     for (char *p = _p; (dir = strsep(&p, ":")) != NULL;) {
         asprintf(&cmd_path, "%s/%s", dir, cmd);
@@ -231,7 +234,6 @@ char *is_in_path(char *cmd) {
     free(_p);
     return NULL;
 }
-
 
 builtin_t builtins[] = {
     {"cd", builtin_cd},
@@ -261,11 +263,13 @@ int builtin_echo(int argc, char *argv[]) {
 }
 
 int builtin_exit(int argc, char *argv[]) {
-    shell_state.should_exit = true;
+    shell_state_t *shell_state = shell_state_get();
+    shell_state->should_exit = true;
     return 0;
 }
 
 char *job_str(job_t job, unsigned job_id) {
+    shell_state_t *shell_state = shell_state_get();
     char *str_state;
     switch(job.state) {
         // centering state string
@@ -277,8 +281,8 @@ char *job_str(job_t job, unsigned job_id) {
     }
 
     char *buf;
-    char active_job_char = (job_id == shell_state.jobs_count - 1) ? '+' :
-                       ((job_id == shell_state.jobs_count - 2) ? '-' : ' ');
+    char active_job_char = (job_id == shell_state->jobs_count - 1) ? '+' :
+                          ((job_id == shell_state->jobs_count - 2) ? '-' : ' ');
 
 
     asprintf(&buf, "[%d] %c %7s %s\n", job_id + 1, active_job_char, str_state, job.cmd);
@@ -286,15 +290,17 @@ char *job_str(job_t job, unsigned job_id) {
 }
 
 int builtin_jobs(int argc, char *argv[]) {
-    job_t *jobs = shell_state.jobs;
-    for (unsigned i = 0; i < shell_state.jobs_count; i++)
+    shell_state_t *shell_state = shell_state_get();
+    job_t *jobs = shell_state->jobs;
+    for (unsigned i = 0; i < shell_state->jobs_count; i++)
         printf("%s", job_str(jobs[i], i));
     
     return 0;
 }
 
 int builtin_history(int argc, char *argv[]) {
-    history_t *hist = &shell_state.hist;
+    shell_state_t *shell_state = shell_state_get();
+    history_t *hist = shell_state->hist;
     if (argc == 1) {
         for (unsigned i = 0; i < hist->cmd_count; i++) {
             unsigned idx = (hist->start + i) % HIST_SIZE;
@@ -380,7 +386,8 @@ char *get_history_path() {
 void load_history() {
     char line[1024];
 
-    history_t *hist = &shell_state.hist;
+    shell_state_t *shell_state = shell_state_get();
+    history_t *hist = shell_state->hist;
     
     hist->fp = fopen(get_history_path(), "a+");
     if (!hist->fp) {
@@ -415,7 +422,8 @@ void save_cmd_to_history(const char *cmd) {
 
     time_t now = time(NULL);
     size_t idx;
-    history_t *hist = &shell_state.hist;
+    shell_state_t *shell_state = shell_state_get();
+    history_t *hist = shell_state->hist;
 
     if (hist->cmd_count < HIST_SIZE) {
         idx = hist->cmd_count++;
@@ -433,7 +441,8 @@ void save_cmd_to_history(const char *cmd) {
 }
 
 void save_history() {
-    history_t *hist = &shell_state.hist;
+    shell_state_t *shell_state = shell_state_get();
+    history_t *hist = shell_state->hist;
 
     if (hist->cmd_count < HIST_SIZE) {
         return;
@@ -457,8 +466,10 @@ int main() {
     signal(SIGINT, sigint_handler);
     signal(SIGCHLD, sigchld_handler);
     tcsetpgrp(STDIN_FILENO, getpgrp());
-    shell_state.path = getenv("PATH");
     //load_history();
+    shell_state_init();
+    shell_state_t *shell_state = shell_state_get();
+    shell_state_init_env();
 
     setbuf(stdout, NULL);
     tokenizer_t *tz = tokenizer_new();
@@ -468,7 +479,7 @@ int main() {
     do {
         input = readline("$ ");
         if (input == NULL) {
-            if (shell_state.running_jobs_count > 0 && !warning_exit) {
+            if (shell_state->running_jobs_count > 0 && !warning_exit) {
                 printf("you have running jobs\n");
                 warning_exit = true;
                 continue;
@@ -480,15 +491,15 @@ int main() {
 
         warning_exit = false;
         tokenizer_init(tz, input);
-            
+        
         ast_node_t *ast_node = parser_create_ast(tz);
         //save_cmd_to_history(tz->input);
 
-        //exec_node(ast_node);
+        exec_node(ast_node);
         parser_free_ast(ast_node);
         free(input);
         
-    } while (!shell_state.should_exit);
+    } while (!shell_state->should_exit);
     tokenizer_free(tz);
     save_history();
     return 0;

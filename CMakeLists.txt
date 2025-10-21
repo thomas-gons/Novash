@@ -62,8 +62,9 @@ endfunction()
 # Project sources
 # -----------------------
 set(NOVASH_SOURCES
-    src/state.c
+    src/shell_state.c
     src/utils.c
+    src/collections.c
     src/tokenizer.c
     src/parser.c
     src/executor.c
