@@ -8,24 +8,37 @@
 
 #include "utils.h"
 
-void *xmalloc(size_t s) {
-    void *ptr = malloc(s);
-    if (!ptr) {perror("malloc failed"); exit(EXIT_FAILURE);}
+void *xmalloc(size_t size) {
+    void *ptr = malloc(size);
+    if (ptr == NULL) {
+        perror("malloc failed");
+        exit(EXIT_FAILURE);
+    }
     return ptr;
 }
 
-void *xrealloc(void *ptr, size_t s) {
-    void *tmp_ptr = realloc(ptr, s);
+void *xcalloc(size_t count, size_t size) {
+    void *ptr = calloc(count, size); 
+    
+    if (ptr == NULL) {
+        perror("calloc failed");
+        exit(EXIT_FAILURE);
+    }
+    return ptr;
+}
+
+void *xrealloc(void *ptr, size_t size) {
+    void *tmp_ptr = realloc(ptr, size);
     if (!tmp_ptr) {perror("realloc failed"); exit(EXIT_FAILURE);}
     return tmp_ptr;
 }
 
 char *xstrdup(const char *s) {
     if (!s) return NULL;
-    size_t sz = strlen(s);
-    char *dup = xmalloc(sz + 1);
-    memcpy(dup, s, sz);
-    dup[sz] = '\0';
+    size_t size = strlen(s);
+    char *dup = xmalloc(size + 1);
+    memcpy(dup, s, size);
+    dup[size] = '\0';
     return dup;
 }
 

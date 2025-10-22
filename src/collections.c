@@ -1,37 +1,49 @@
 #include "collections.h"
 
+
 /* --- DYNAMIC ARRAY --- */
 
-dynarray_t *dynarray_new(size_t initial_capacity) {
-    dynarray_t *arr = xmalloc(sizeof(dynarray_t));
-    arr->capacity = (initial_capacity > 0) ? initial_capacity : 8;
-    arr->size = 0;
-    arr->data = xmalloc(arr->capacity * sizeof(void *));
-    return arr;
-}
+void *arr_grow(void *arr, size_t needed, size_t element_size) {
+    size_t new_cap = 0;
+    arr_header_t *header;
 
-bool dynarray_push(dynarray_t *arr, void *item) {
-    if (!arr) return false;
-
-    if (arr->size == arr->capacity) {
-        arr->capacity *= 2;
-        arr->data = xrealloc(arr->data, arr->capacity * sizeof(void *));
+    // Calculate the new capacity
+    if (arr) {
+        // Array already exists, retrieve current header and capacity
+        header = arr_header(arr);
+        new_cap = header->capacity;
+        
+        // Double the capacity until the 'needed' number of slots is satisfied
+        while (header->count + needed > new_cap) {
+            new_cap = (new_cap == 0) ? 16 : new_cap * 2;
+        }
+    } else {
+        // Initial allocation (arr is NULL)
+        new_cap = (needed == 0) ? 16 : needed; // Start with 16 or 'needed'
     }
 
-    arr->data[arr->size++] = item;
-    return true;
-}
+    // Calculate the new total size to allocate (Header + Data)
+    // The total size includes the space for the header struct itself.
+    size_t new_total_size = sizeof(arr_header_t) + new_cap * element_size;
 
-void *dynarray_get(const dynarray_t *arr, size_t index) {
-    if (!arr || index >= arr->size) return NULL;
-    return arr->data[index];
-}
+    // Reallocation/Allocation
+    if (arr) {
+        // If 'arr' exists, use xrealloc on the existing header address.
+        header = xrealloc(arr_header(arr), new_total_size);
+    } else {
+        // If 'arr' is NULL, use xmalloc for the initial allocation.
+        header = xmalloc(new_total_size);
+        // Initialize count to 0 for a brand new array.
+        header->count = 0; 
+    }
 
+    // Update capacity value in the new header block
+    header->capacity = new_cap;
 
-void dynarray_free(dynarray_t *arr) {
-    if (!arr) return;
-    free(arr->data);
-    free(arr);
+    // Return the data pointer (which is located immediately after the header struct).
+    // (header + 1) performs pointer arithmetic on arr_header_t*, moving past 
+    // one full arr_header_t struct.
+    return (void *)(header + 1);
 }
 
 
@@ -42,6 +54,14 @@ list_t *list_new(void) {
     list->head = NULL;
     list->size = 0;
     return list;
+}
+
+void list_add_head(list_t *list, void *data) {
+    list_node_t *new_node = xmalloc(sizeof(list_node_t));
+    new_node->data = data;
+    new_node->next = list->head;
+    list->head = new_node;
+    list->size++;
 }
 
 void list_add(list_t *list, void *data) {
@@ -132,6 +152,9 @@ bool hashmap_set(hashmap_t *map, const char *key, void *value) {
     for (list_node_t *current = bucket->head; current; current = current->next) {
         hashmap_entry_t *entry = current->data;
         if (strcmp(entry->key, key) == 0) {
+            if (entry->value) {
+                free(entry->value);
+            }
             entry->value = value;
             return true;
         }
@@ -140,12 +163,9 @@ bool hashmap_set(hashmap_t *map, const char *key, void *value) {
     hashmap_entry_t *new_entry = xmalloc(sizeof(hashmap_entry_t));
     new_entry->key = xstrdup(key);
     new_entry->value = value;
-
-    list_node_t *new_node = xmalloc(sizeof(list_node_t));
-    new_node->data = new_entry;
-    new_node->next = bucket->head;
-    bucket->head = new_node;
-
+    
+    list_add_head(bucket, new_entry); 
+    
     map->size++;
     return true;
 }
@@ -164,10 +184,27 @@ void *hashmap_get(hashmap_t *map, const char *key) {
     return NULL;
 }
 
-void hashmap_free(hashmap_t *map, void (*free_data)(void *)) {
+/**
+ * Frees a single hashmap entry, including the key string and the value data.
+ * This is designed to be passed to list_free.
+ */
+static void hashmap_entry_free(void *data) {
+    if (data == NULL) return;
+
+    hashmap_entry_t *entry = (hashmap_entry_t *)data;
+    
+    free(entry->key);
+    free(entry->value);
+    free(entry);
+}
+
+void hashmap_free(hashmap_t *map) {
     if (!map) return;
-    for (size_t i = 0; i < map->capacity; i++)
-        list_free(map->buckets[i], free_data);
+    
+    for (size_t i = 0; i < map->capacity; i++) {
+        list_free(map->buckets[i], hashmap_entry_free); 
+    }
+    
     free(map->buckets);
     free(map);
 }

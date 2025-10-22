@@ -29,8 +29,10 @@
 #include "tokenizer.h"
 #include "parser.h"
 #include "builtin.h"
+#include "history.h"
 #include "shell_state.h"
 #include "utils.h"
+#include "collections.h"
 
 typedef int (*builtin_f_t) (int argc, char *argv[]);
 

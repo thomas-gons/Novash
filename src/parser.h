@@ -34,15 +34,14 @@ typedef struct {
  * @note The argv array, redir array and raw_str are dynamically allocated and should be freed appropriately.
  */
 typedef struct {
-    int argc;                  /**<  Number of arguments in argv. */
     char **argv;               /**<  Argument vector (command and its arguments, NULL-terminated). */
-    dynarray_t *redir;
+    redirection_t *redir;
     char *raw_str;             /**<  Original command string for reference. */
     bool is_bg;                /**<  Indicates if the command will run in the background. */
 } cmd_node_t;
 
 /**
- * AST node representing a pipeline of two commands connected by '|'. 
+ * @brief AST node representing a pipeline of two commands connected by '|'. 
  */
 typedef struct {
     struct ast_node_t *left;
@@ -67,7 +66,6 @@ typedef struct {
  */
 typedef struct {
     struct ast_node_t **nodes;
-    size_t nodes_count;
 } seq_node_t;
 
 /**

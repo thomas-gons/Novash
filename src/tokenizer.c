@@ -17,16 +17,18 @@ tokenizer_t *tokenizer_new() {
 }
 
 void tokenizer_init(tokenizer_t *tz, char *input) {
+    if (tz->input) free(tz->input);
+    
     tz->input = xstrdup(input);
     tz->pos = 0;
     tz->length = strlen(input);
 }
 
 void tokenizer_free(tokenizer_t *tz) {
-    if (tz) {
-        if (tz->input) free(tz->input);
-        free(tz);
-    }
+    if (!tz) return;
+
+    if (tz->input) free(tz->input);
+    free(tz);
 }
 
 void tokenizer_free_token(token_t *tok) {

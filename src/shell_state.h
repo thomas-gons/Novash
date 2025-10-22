@@ -4,10 +4,12 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <time.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include "config.h"
 #include "collections.h"
 
+typedef struct history_t history_t;
 
 typedef enum {
     JOB_RUNNING,
@@ -22,18 +24,11 @@ typedef struct {
     char *cmd;
 } job_t;
 
-typedef struct {
-    char *cmd_list[HIST_SIZE];
-    time_t timestamps[HIST_SIZE];
-    size_t cmd_count;
-    unsigned start;
-    FILE *fp;
-} history_t;
 
 typedef struct shell_state_t{
-    hashmap_t *envp;
+    hashmap_t *environment;
 
-    char *current_dir;
+    char *cwd;
     int last_exit_status;
     bool should_exit;
 
@@ -45,6 +40,6 @@ typedef struct shell_state_t{
 
 void shell_state_init();
 shell_state_t *shell_state_get();
-void shell_state_init_env();
+void shell_state_free();
 
 #endif // __SHELL_STATE_H__
