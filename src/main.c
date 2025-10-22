@@ -45,17 +45,17 @@ int exec_pipeline(ast_node_t *ast_node) {
 }
 
 int handle_redirection(cmd_node_t cmd_node) {
-    int *fd = xmalloc(cmd_node.redir->size * sizeof(int));
+    int *fd = xmalloc(arr_len(cmd_node.redir) * sizeof(int));
     int oflag;
-    for (unsigned i = 0; i < cmd_node.redir->size; i++) {
-        redirection_t *redir = cmd_node.redir->data[i];
-        oflag = (redir->type == REDIR_IN) ?  O_RDONLY:
-                    (redir->type == REDIR_OUT) ? O_WRONLY | O_CREAT | O_TRUNC:
+    for (unsigned i = 0; i < arr_len(cmd_node.redir); i++) {
+        redirection_t redir = cmd_node.redir[i];
+        oflag = (redir.type == REDIR_IN) ?  O_RDONLY:
+                    (redir.type == REDIR_OUT) ? O_WRONLY | O_CREAT | O_TRUNC:
                                                 O_WRONLY | O_CREAT | O_APPEND;
         
-        fd[i] = open(redir->target, oflag, 0644);
+        fd[i] = open(redir.target, oflag, 0644);
         if (fd[i] == -1) { perror("open failed"); return 1; }
-        if (dup2(fd[i], redir->fd) == -1) { perror("fd duplication failed"); return 1;}
+        if (dup2(fd[i], redir.fd) == -1) { perror("fd duplication failed"); return 1;}
 
         close(fd[i]);
     }
@@ -142,7 +142,7 @@ int run_child(cmd_node_t cmd_node, runner_f_t runner_f) {
 
 void builtin_runner(cmd_node_t cmd_node) {
     builtin_f_t f = builtin_get_function(cmd_node.argv[0]);
-    int r = f(cmd_node.argc, cmd_node.argv);
+    int r = f((int) arr_len(cmd_node.argv), cmd_node.argv);
     _exit(r);
 }
 
@@ -166,7 +166,7 @@ int exec_node(ast_node_t *ast_node) {
     switch (ast_node->type) {
         case NODE_SEQUENCE:
             seq_node_t seq_node = ast_node->seq;
-            for (unsigned i = 0; i < seq_node.nodes_count; i++) {
+            for (unsigned i = 0; i < arr_len(seq_node.nodes); i++) {
                 r = exec_node(seq_node.nodes[i]);
             }
             return r;
@@ -192,15 +192,15 @@ int exec_node(ast_node_t *ast_node) {
             if (!cmd) return 0;
 
             if (builtin_is_builtin(cmd)) {
-                if (cmd_node.redir->size == 0) {
+                if (arr_len(cmd_node.redir) == 0) {
                     builtin_f_t f = builtin_get_function(cmd);
-                    return f(cmd_node.argc, cmd_node.argv);
+                    return f((int)arr_len(cmd_node.argv), cmd_node.argv);
                 }
                 return run_child(cmd_node, builtin_runner);
             }
             
             if ((is_in_path(cmd)) != NULL) {
-                return run_child(cmd_node, external_cmd_runner);
+                r = run_child(cmd_node, external_cmd_runner);
             } else {
                 printf("%s: command not found\n", cmd);
                 r = 127;
@@ -220,7 +220,7 @@ char *is_in_path(char *cmd) {
     struct stat buf;
 
     shell_state_t *shell_state = shell_state_get();
-    char *path = hashmap_get(shell_state->envp, "PATH");
+    char *path = hashmap_get(shell_state->environment, "PATH");
     char *_p = xstrdup(path);
 
     for (char *p = _p; (dir = strsep(&p, ":")) != NULL;) {
@@ -367,109 +367,14 @@ builtin_f_t builtin_get_function(char *name) {
     return NULL;
 }
 
-char *get_history_path() {
-    char exe[PATH_MAX];
-    ssize_t len = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
-    if (len == -1) return xstrdup(HIST_PATH);
-    exe[len] = '\0';
-
-    char *dir = dirname(exe);
-
-    char *last = strrchr(dir, '/');
-    if (last && strcmp(last + 1, "build") == 0) *last = '\0';
-
-    char *path;
-    asprintf(&path, "%s/%s", dir, HIST_PATH);
-    return path;
-}
-
-void load_history() {
-    char line[1024];
-
-    shell_state_t *shell_state = shell_state_get();
-    history_t *hist = shell_state->hist;
-    
-    hist->fp = fopen(get_history_path(), "a+");
-    if (!hist->fp) {
-        perror("fopen");
-        exit(1);
-    }
-    rewind(hist->fp);
-
-    while (fgets(line, sizeof(line), hist->fp)) {
-        char *sep = strchr(line, ';');
-        if (!sep) continue;
-        *sep = '\0';
-        time_t ts = atol(line + 2);
-        char *cmd = sep + 1;
-        cmd[strcspn(cmd, "\n")] = 0;
-
-        if (hist->cmd_count < HIST_SIZE) {
-            hist->cmd_list[hist->cmd_count] = xstrdup(cmd);
-            hist->timestamps[hist->cmd_count] = ts;
-            hist->cmd_count++;
-        } else {
-            free(hist->cmd_list[hist->start]);
-            hist->cmd_list[hist->start] = xstrdup(cmd);
-            hist->timestamps[hist->start] = ts;
-            hist->start = (hist->start + 1) % HIST_SIZE;
-        }
-    }
-}
-
-void save_cmd_to_history(const char *cmd) {
-    if (!cmd || !*cmd) return;
-
-    time_t now = time(NULL);
-    size_t idx;
-    shell_state_t *shell_state = shell_state_get();
-    history_t *hist = shell_state->hist;
-
-    if (hist->cmd_count < HIST_SIZE) {
-        idx = hist->cmd_count++;
-    } else {
-        idx = hist->start;
-        free(hist->cmd_list[idx]);
-        hist->start = (hist->start + 1) % HIST_SIZE;
-    }
-
-    hist->cmd_list[idx] = xstrdup(cmd);
-    hist->timestamps[idx] = now;
-
-    fprintf(hist->fp, "%ld;%s\n", now, cmd);
-    fflush(hist->fp);
-}
-
-void save_history() {
-    shell_state_t *shell_state = shell_state_get();
-    history_t *hist = shell_state->hist;
-
-    if (hist->cmd_count < HIST_SIZE) {
-        return;
-    }
-
-    FILE *hist_write_fp = fopen(get_history_path(), "w+");
-    if (!hist_write_fp) { perror("open failed"); exit(1); }
-
-    unsigned index = 0;
-    unsigned hist_end = HIST_SIZE + hist->start;
-    for (unsigned i = hist->start; i < hist_end; i++) {
-        index = i % HIST_SIZE;
-        fprintf(hist_write_fp, "%ld;%s\n", hist->timestamps[index], hist->cmd_list[index]);
-    }
-    fclose(hist_write_fp);
-}
-
 int main() {
     signal(SIGTTOU, SIG_IGN);
     signal(SIGTTIN, SIG_IGN);
     signal(SIGINT, sigint_handler);
     signal(SIGCHLD, sigchld_handler);
     tcsetpgrp(STDIN_FILENO, getpgrp());
-    //load_history();
     shell_state_init();
     shell_state_t *shell_state = shell_state_get();
-    shell_state_init_env();
 
     setbuf(stdout, NULL);
     tokenizer_t *tz = tokenizer_new();
@@ -493,14 +398,15 @@ int main() {
         tokenizer_init(tz, input);
         
         ast_node_t *ast_node = parser_create_ast(tz);
-        //save_cmd_to_history(tz->input);
+        history_save_command(tz->input);
 
         exec_node(ast_node);
         parser_free_ast(ast_node);
         free(input);
         
     } while (!shell_state->should_exit);
+    history_trim();
     tokenizer_free(tz);
-    save_history();
+    shell_state_free();
     return 0;
 }

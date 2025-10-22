@@ -25,7 +25,6 @@ typedef enum {
     TOK_REDIR_IN,
     TOK_REDIR_OUT,
     TOK_REDIR_APPEND,
-    TOK_HEREDOC,
     TOK_EOF,
 } token_type_e;
 

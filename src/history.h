@@ -10,24 +10,24 @@
 #include <libgen.h>
 #include <sys/types.h>
 #include <string.h>
-#include <unistd.h>
-#include <shell_state.h>
+#include "shell_state.h"
 #include "config.h"
 #include "utils.h"
 
 
-typedef struct {
-    char *cmd_list[HIST_SIZE];
-    time_t timestamps[HIST_SIZE];
+typedef struct history_t {
+    char **cmd_list;
+    time_t *timestamps;
     size_t cmd_count;
     unsigned start;
     FILE *fp;
 } history_t;
 
 
-char *get_history_path();
-void load_history();
-void save_cmd_to_history(const char *cmd);
-void save_history();
+void history_init();
+void history_load();
+void history_save_command(const char *cmd);
+void history_trim();
+void history_free();
 
 #endif // __HISTORY_H__

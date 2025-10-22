@@ -23,7 +23,15 @@
  * @param s size of memory to allocate
  * @return pointer to allocated memory
  */
-void *xmalloc(size_t s);
+void *xmalloc(size_t size);
+
+/**
+ * allocate memory, initialize it to zero, and exit on failure
+ * @param count The number of elements to allocate.
+ * @param size The size of each element in bytes.
+ * @return pointer to allocated, zero-initialized memory
+ */
+void *xcalloc(size_t count, size_t size);
 
 /**
  * reallocate memory and exit on failure
@@ -31,7 +39,7 @@ void *xmalloc(size_t s);
  * @param s new size of memory
  * @return pointer to reallocated memory
  */
-void *xrealloc(void *ptr, size_t s);
+void *xrealloc(void *ptr, size_t size);
 
 /**
  * duplicate a string and exit on failure

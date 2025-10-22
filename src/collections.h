@@ -18,52 +18,42 @@
 /*                              Dynamic Array API                             */
 /* ========================================================================== */
 
-/**
- * @brief Dynamic array (resizable array) storing generic pointers.
- *
- * Implements an automatically resizing array that doubles its capacity when full.
- * Provides fast amortized O(1) append operations and indexed access.
- *
- * @note This structure only manages the container; it does not free the elements
- * stored inside. Use a loop or custom function to free individual items if needed.
- */
 typedef struct {
-    void **data;      /**< Pointer to array of element pointers. */
-    size_t size;      /**< Number of elements currently stored. */
-    size_t capacity;  /**< Allocated capacity of the array. */
-} dynarray_t;
+    size_t count;    /**< Number of elements currently used. */
+    size_t capacity; /**< Total allocated capacity. */
+    // Array data starts immediately after this structure.
+} arr_header_t;
+
+// --- HEADER ACCESS MACROS ---
+/** Calculates the header address by offsetting the data pointer address. */
+#define arr_header(a) ((arr_header_t *)((char *)(a) - sizeof(arr_header_t)))
+
+// --- OPERATION MACROS ---
+
+/** Returns the number of elements in the array (length). */
+#define arr_len(a) ((a) ? arr_header(a)->count : 0)
+
+/** Returns the total allocated capacity of the array. */
+#define arr_cap(a) ((a) ? arr_header(a)->capacity : 0)
+
+/** Frees the allocated memory (including the hidden header). */
+#define arr_free(a) ((void)((a) ? (free(arr_header(a)), (a) = NULL) : 0))
 
 /**
- * @brief Creates a new dynamic array with a given initial capacity.
- * @param initial_cap Initial number of elements to allocate space for.
- * If zero, a default small capacity is used.
- * @return Pointer to a newly allocated dynamic array.
+ * Growth function (implemented in a C source file, not as a macro).
+ * Handles reallocating memory for the header and data.
  */
-dynarray_t *dynarray_new(size_t initial_cap);
+void *arr_grow(void *arr, size_t needed, size_t element_size);
 
-/**
- * @brief Appends an element to the dynamic array.
- * Automatically grows the internal storage if needed (doubling strategy).
- * @param arr Pointer to the dynamic array.
- * @param item Pointer to the element to append.
- * @return true if the element was successfully added, false otherwise.
- */
-bool dynarray_push(dynarray_t *arr, void *item);
+/** Checks capacity and expands the array if necessary. */
+#define arr_maybegrow(a, n)                                                 \
+    ((!(a) || arr_header(a)->count + (n) > arr_header(a)->capacity)         \
+     ? ((a) = arr_grow(a, (n), sizeof(*(a))), 0)                            \
+     : 0)
 
-/**
- * @brief Retrieves an element by index.
- * @param arr Pointer to the dynamic array.
- * @param index Index of the element to retrieve.
- * @return Pointer to the element at the specified index, or NULL if out of bounds.
- */
-void *dynarray_get(const dynarray_t *arr, size_t index);
-
-/**
- * @brief Frees the dynamic array structure and its internal data buffer.
- * Does NOT free the individual elements stored in the array.
- * @param arr Pointer to the dynamic array to free.
- */
-void dynarray_free(dynarray_t *arr);
+/** Appends a new element to the end of the array. (The shortest call site!) */
+#define arr_push(a, v)                                                       \
+    (arr_maybegrow(a, 1), (a)[arr_len(a)] = (v), arr_header(a)->count++)
 
 
 /* ========================================================================== */
@@ -101,6 +91,7 @@ list_t *list_new(void);
  */
 void list_add(list_t *list, void *data);
 
+void list_add_head(list_t *list, void *data);
 
 void *list_pop_front(list_t *list);
 
@@ -168,13 +159,13 @@ bool hashmap_set(hashmap_t *map, const char *key, void *value);
  */
 void *hashmap_get(hashmap_t *map, const char *key);
 
+
 /**
  * @brief Frees the hash map and optionally the stored values.
  * @param map Pointer to the hash map to free.
- * @param free_data Optional function to free each stored value.
  * If NULL, only internal structures are freed.
  */
-void hashmap_free(hashmap_t *map, void (*free_data)(void *));
+void hashmap_free(hashmap_t *map);
 
 
 #endif // __COLLECTIONS_H__

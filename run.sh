@@ -4,7 +4,7 @@
 # This version uses build/debug and build/release as CMake cache directories.
 
 set -e  # Stop immediately if any command fails
-trap 'echo "Command failed: $BASH_COMMAND"' ERR
+trap 'echo Command failed: $BASH_COMMAND' ERR
 
 EXE=nsh
 BUILD_BASE_DIR="build"
