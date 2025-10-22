@@ -62,16 +62,31 @@ endfunction()
 # Project sources
 # -----------------------
 set(NOVASH_SOURCES
-    src/shell_state.c
-    src/utils.c
-    src/collections.c
-    src/tokenizer.c
-    src/parser.c
-    src/executor.c
-    src/builtin.c
-    src/jobs.c
-    src/history.c
     src/main.c
+
+    # executor
+    src/executor/builtin.c
+    src/executor/executor.c
+    src/executor/jobs.c
+
+    # history
+    src/history/history.c
+
+    # parser
+    src/parser/parser.c
+
+    # shell
+    src/shell/shell.c
+    src/shell/state.c
+    src/shell/signal.c
+
+    # tokenizer
+    src/tokenizer/tokenizer.c
+
+    # utils
+    src/utils/collections.c
+    src/utils/memory.c
+    src/utils/utils.c
 )
 
 # -----------------------

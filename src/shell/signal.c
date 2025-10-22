@@ -1,0 +1,68 @@
+/*
+ * Novash — a minimalist shell implementation
+ * Copyright (C) 2025 Thomas Gons
+ *
+ * This file is licensed under the GNU General Public License v3 or later.
+ * See <https://www.gnu.org/licenses/> for details.
+ */
+
+#include "signal.h"
+
+
+void handle_sigchld_events() {
+    int status;
+    pid_t pid;
+    char *buf;
+    shell_state_t *shell_state = shell_state_get();
+    job_t *jobs = shell_state->jobs;
+
+    // Use WUNTRACED to catch stopped processes (Ctrl+Z)
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
+        unsigned job_id = 0;
+        // Find the job entry
+        for (unsigned i = 0; i < shell_state->jobs_count; i++) {
+            if (jobs[i].pid == pid) { job_id = i; break; }
+        }
+        
+        if (job_id == shell_state->jobs_count) continue; 
+
+        job_t *job = &jobs[job_id];
+        
+        if (WIFSTOPPED(status)) {
+            job->state = JOB_STOPPED;
+        } else if (WIFSIGNALED(status)) {
+            job->state = JOB_KILLED;
+        } else {
+            job->state = JOB_DONE;
+        }
+        shell_state->running_jobs_count--;
+
+        // Use ANSI codes to display status cleanly
+        write(STDOUT_FILENO, "\n\033[A\033[K", 5); 
+        
+        buf = job_str(*job, job_id);
+        write(STDOUT_FILENO, buf, strlen(buf));
+        write(STDOUT_FILENO, "\n", 1);
+        
+        rl_forced_update_display();
+    }
+}
+
+void handle_sigint_event() {
+    // Ensure the terminal is clean after interrupt in the readline context
+    rl_on_new_line();
+    rl_replace_line("", 0);
+    rl_redisplay(); // Force prompt redisplay
+}
+
+void sigint_handler(int sig) {
+    (void)sig;
+    shell_state_t *shell_state = shell_state_get();
+    shell_state->sigint_received = true; 
+}
+
+void sigchld_handler(int sig) {
+    (void)sig;
+    shell_state_t *shell_state = shell_state_get();
+    shell_state->sigchld_received = true;
+}

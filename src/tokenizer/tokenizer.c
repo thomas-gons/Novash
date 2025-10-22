@@ -8,6 +8,7 @@
 
 #include "tokenizer.h"
 
+
 tokenizer_t *tokenizer_new() {
     tokenizer_t *tz = xmalloc(sizeof(tokenizer_t));
     tz->input = NULL;

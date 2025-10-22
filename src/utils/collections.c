@@ -1,7 +1,13 @@
+/*
+ * Novash — a minimalist shell implementation
+ * Copyright (C) 2025 Thomas Gons
+ *
+ * This file is licensed under the GNU General Public License v3 or later.
+ * See <https://www.gnu.org/licenses/> for details.
+ */
+
 #include "collections.h"
 
-
-/* --- DYNAMIC ARRAY --- */
 
 void *arr_grow(void *arr, size_t needed, size_t element_size) {
     size_t new_cap = 0;
@@ -9,31 +15,28 @@ void *arr_grow(void *arr, size_t needed, size_t element_size) {
 
     // Calculate the new capacity
     if (arr) {
-        // Array already exists, retrieve current header and capacity
         header = arr_header(arr);
         new_cap = header->capacity;
         
         // Double the capacity until the 'needed' number of slots is satisfied
         while (header->count + needed > new_cap) {
-            new_cap = (new_cap == 0) ? 16 : new_cap * 2;
+            new_cap = (new_cap == 0) ? SBT_VECTOR_BASE_CAP : new_cap * 2;
         }
     } else {
         // Initial allocation (arr is NULL)
-        new_cap = (needed == 0) ? 16 : needed; // Start with 16 or 'needed'
+        new_cap = (needed == 0) ? SBT_VECTOR_BASE_CAP : needed; // Start with 16 or 'needed'
     }
 
     // Calculate the new total size to allocate (Header + Data)
     // The total size includes the space for the header struct itself.
     size_t new_total_size = sizeof(arr_header_t) + new_cap * element_size;
 
-    // Reallocation/Allocation
     if (arr) {
         // If 'arr' exists, use xrealloc on the existing header address.
         header = xrealloc(arr_header(arr), new_total_size);
     } else {
         // If 'arr' is NULL, use xmalloc for the initial allocation.
         header = xmalloc(new_total_size);
-        // Initialize count to 0 for a brand new array.
         header->count = 0; 
     }
 
@@ -41,8 +44,6 @@ void *arr_grow(void *arr, size_t needed, size_t element_size) {
     header->capacity = new_cap;
 
     // Return the data pointer (which is located immediately after the header struct).
-    // (header + 1) performs pointer arithmetic on arr_header_t*, moving past 
-    // one full arr_header_t struct.
     return (void *)(header + 1);
 }
 
