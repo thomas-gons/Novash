@@ -6,17 +6,14 @@
  * See <https://www.gnu.org/licenses/> for details.
  */
 
-#include "shell/shell.h"
+#ifndef __CONFIG_H__
+#define __CONFIG_H__
+
+#define MAX_JOBS 64
+#define HIST_SIZE 10
+#define COMMAND_NOT_FOUND_EXIT_CODE 127
+#define HIST_FILENAME ".nsh_history"
 
 
-int main() {
-    if (shell_init() != 0) {
-        return EXIT_FAILURE;
-    }
 
-    int exit_code = shell_run();
-    
-    shell_cleanup();
-
-    return exit_code;
-}
+#endif // __CONFIG_H__

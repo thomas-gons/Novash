@@ -11,12 +11,28 @@
 
 #include <stddef.h>
 #include <stdbool.h>
-#include "utils.h"
+#include "utils/memory.h"
 
 
-/* ========================================================================== */
-/*                              Dynamic Array API                             */
-/* ========================================================================== */
+/*
+ * Stretchy Buffer (stb) Implementation
+ *
+ * This dynamic array pattern, popularized by Sean Barrett (stb libraries),
+ * provides a simple, high-performance way to manage dynamically-sized C arrays.
+ * * CORE PRINCIPLE: The array metadata (count and capacity) is stored in the 
+ * arr_header_t structure located immediately BEFORE the data pointer returned 
+ * to the user.
+ * * The macros (arr_len, arr_free, arr_push) use pointer arithmetic (arr_header(a))
+ * to "rewind" the pointer and access this hidden header, making the array 
+ * behave like a simple C pointer (e.g., array[i]).
+ * 
+ * * USAGE EXAMPLE:
+ * 
+ * int *my_array = NULL;                        // 1. Start with a NULL pointer
+ * arr_push(my_array, 10);                      // 2. The macro handles allocation/resizing and adds the value
+ * printf("Length: %zu\n", arr_len(my_array));  // 3. Access elements
+ * arr_free(my_array);                          // 4. Free array (also sets my_array to NULL)
+ */
 
 typedef struct {
     size_t count;    /**< Number of elements currently used. */
@@ -24,11 +40,10 @@ typedef struct {
     // Array data starts immediately after this structure.
 } arr_header_t;
 
-// --- HEADER ACCESS MACROS ---
+#define SBT_VECTOR_BASE_CAP 16
+
 /** Calculates the header address by offsetting the data pointer address. */
 #define arr_header(a) ((arr_header_t *)((char *)(a) - sizeof(arr_header_t)))
-
-// --- OPERATION MACROS ---
 
 /** Returns the number of elements in the array (length). */
 #define arr_len(a) ((a) ? arr_header(a)->count : 0)
@@ -40,7 +55,7 @@ typedef struct {
 #define arr_free(a) ((void)((a) ? (free(arr_header(a)), (a) = NULL) : 0))
 
 /**
- * Growth function (implemented in a C source file, not as a macro).
+ * Growth function
  * Handles reallocating memory for the header and data.
  */
 void *arr_grow(void *arr, size_t needed, size_t element_size);

@@ -6,7 +6,8 @@
  * See <https://www.gnu.org/licenses/> for details.
  */
 
-#include "utils.h"
+#include "utils/memory.h"
+
 
 void *xmalloc(size_t size) {
     void *ptr = malloc(size);

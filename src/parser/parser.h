@@ -10,9 +10,9 @@
 #define __PARSER_H__
 
 #include <assert.h>
-#include "collections.h"
-#include "tokenizer.h"
-#include "utils.h"
+#include "utils/collections.h"
+#include "tokenizer/tokenizer.h"
+#include "utils/memory.h"
 
 
 typedef enum { REDIR_IN, REDIR_OUT, REDIR_APPEND } redirection_e;

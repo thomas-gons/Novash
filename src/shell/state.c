@@ -1,15 +1,35 @@
+/*
+ * Novash — a minimalist shell implementation
+ * Copyright (C) 2025 Thomas Gons
+ *
+ * This file is licensed under the GNU General Public License v3 or later.
+ * See <https://www.gnu.org/licenses/> for details.
+ */
+
 #define _DEFAULT_SOURCE
 
-#include "shell_state.h"
-#include "history.h"
+#include "shell/state.h"
+#include "history/history.h"
+#include "executor/jobs.h"
 
 static shell_state_t *ss;
 
-shell_state_t *shell_state_get() { 
+shell_state_t *shell_state_get() {
+    if (ss == NULL) {
+        fprintf(stderr, "Fatal Error: Shell instance was not initialized before use.\n");    
+        exit(EXIT_FAILURE);
+    }
     return ss;
 }
 
-
+/**
+ * @brief Initializes the shell's environment hashmap with essential variables.
+ * * HOME - absolute path to the current user's home.
+ * * PATH - the colon-separated list of directories for executable searches
+ * * SHELL - the absolute path to the Novash executable itself. 
+ * * HISTFILE - the absolute path to the file used for storing command history.
+ * All keys and values are duplicated (xstrdup) before being stored in the hashmap.
+ */
 static void init_environment() {
     // --- HOME and PATH ---
     char *home_val = getenv("HOME");
@@ -43,6 +63,10 @@ static void init_environment() {
     if (hist_file_len > 0 && hist_file_len < PATH_MAX) {
         hashmap_set(ss->environment, xstrdup("HISTFILE"), xstrdup(hist_file_buf)); // FIX C
     }
+}
+
+char *shell_state_getenv(const char *key) {
+    return hashmap_get(ss->environment, key);
 }
 
 void shell_state_init() {

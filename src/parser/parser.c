@@ -33,7 +33,7 @@ static char **parse_arguments(tokenizer_t *tz) {
 
     while (g_tok.type == TOK_WORD) {
         // the global token value is continually overwritten thus we need to xstrdup
-        arr_push(argv, strdup(g_tok.value));
+        arr_push(argv, xstrdup(g_tok.value));
         next_token(tz);
     }
     

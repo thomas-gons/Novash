@@ -12,7 +12,8 @@
 #include <stdbool.h>
 #include <stdbool.h>
 #include <string.h>
-#include "utils.h"
+#include "utils/memory.h"
+
 
 typedef enum {
     TOK_WORD,

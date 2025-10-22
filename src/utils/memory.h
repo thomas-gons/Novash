@@ -6,8 +6,8 @@
  * See <https://www.gnu.org/licenses/> for details.
  */
 
-#ifndef __UTIL_H__
-#define __UTIL_H__
+#ifndef __MEMORY_H__
+#define __MEMORY_H__
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,4 +59,4 @@ char *xstrdup(const char *s);
 int xsnprintf(char *buf, size_t buf_sz, const char *fmt, ...);
 
 
-#endif // __UTIL_H__
+#endif // __MEMORY_H__
