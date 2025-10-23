@@ -11,11 +11,11 @@ show_help() {
     echo "Usage: ./run.sh [OPTIONS]"
     echo ""
     echo "Options:"
-    echo "  -d, --debug     Build in Debug mode"
-    echo "  -c, --clean     Remove the build directories and exit"
-    echo "  -b, --build     Only build, do not run shell or tests"
-    echo "  -t, --test      Build and run tests"
-    echo "  -h, --help      Display this help message"
+    echo "  -d, --debug       Build in Debug mode"
+    echo "  -b, --build-only  Only build, do not run shell or tests"
+    echo "  -t, --test        Build and run tests"
+    echo "  -c, --clean       Remove the build directories and exit"
+    echo "  -h, --help        Display this help message"
     echo ""
     echo "Default: Release build and run shell"
 }
@@ -41,7 +41,7 @@ while [[ $# -gt 0 ]]; do
             CLEAN=true
             shift
             ;;
-        -b|--build)
+        -b|--build-only)
             BUILD_ONLY=true
             shift
             ;;

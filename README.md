@@ -2,7 +2,7 @@
 **A minimal Unix-like shell written in C**
 
 A lightweight shell inspired by the [Build your own Shell](https://app.codecrafters.io/courses/shell/overview) roadmap from CodeCrafters.
-The goal is to implement, from scratch the essential components of a modern UNIX shell including parsing, executing, background jogs and user interaction.
+The goal is to implement, from scratch the essential components of a modern UNIX shell including parsing, executing, background jobs and user interaction.
 
 ---
 
@@ -26,7 +26,7 @@ The goal is to implement, from scratch the essential components of a modern UNIX
 - [X] Conditional and sequential execution (`&&`, `||`, `;`)
 - [X] Background tasks (`&`)
 - [X] Signal handling (`SIGINT`, `SIGCHLD`)
-- [ ] Job management (`fg`, `bg`, `jobs`)
+- [ ] Job management (`fg`, `bg`, `jobs`) - in progress
 
 ## Command Line navigation
 
@@ -60,5 +60,45 @@ chmod u+x run.sh
 ./run.sh
 ```
 Optional flags:
-   -d, --debug   Run in debug mode
-   -h, --help    Show the help message
+  -d, --debug       Build in Debug mode
+  -b, --build-only  Only build, do not run shell or tests
+  -t, --test        Build and run tests
+  -c, --clean       Remove the build directories and exit
+  -h, --help        Display this help message
+
+
+### Or build manually with CMake
+```sh
+mkdir build
+cd build
+```
+#### 1. Configuration release or debug build
+```sh
+# Release build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+
+# Debug build with sanitizers
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON
+
+# Enable tests if needed
+cmake .. -DTESTS=ON
+```
+#### 2. Build the project
+```sh
+cmake --build . -j$(nproc) --target nsh  # or tests_novash to build tests
+```
+
+#### 3. Run the shell
+```sh
+# Run the shell
+./build/<debug|release>/nsh
+
+# Run the tests
+./build/<debug|release>/tests_novash
+```
+
+### Contributing
+Contributions are welcome! Feel free to open issues or submit pull requests on GitHub.
+
+### License
+This project is licensed under the GNU General Public License v3 or later. See the [LICENSE](LICENSE) file for details.
