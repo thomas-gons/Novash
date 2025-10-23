@@ -96,14 +96,11 @@ int shell_init() {
     return 0;
 }
 
-
-
 void shell_cleanup() {
     history_trim();
     tokenizer_free(tz);
     shell_state_free();
 }
-
 
 int shell_run() {
     shell_state_t *shell_state = shell_state_get();
