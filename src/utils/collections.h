@@ -70,6 +70,9 @@ void *arr_grow(void *arr, size_t needed, size_t element_size);
 #define arr_push(a, v)                                                       \
     (arr_maybegrow(a, 1), (a)[arr_len(a)] = (v), arr_header(a)->count++)
 
+/** Appends a new element but does not increase the count. */
+#define arr_push_nocount(a, v)                                              \
+    (arr_maybegrow(a, 1), (a)[arr_len(a)] = (v))
 
 /* ========================================================================== */
 /*                              Linked List API                               */

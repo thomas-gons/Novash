@@ -14,6 +14,26 @@
 
 static tokenizer_t *tz;
 
+// Check atomic flags set by signal handlers and perform necessary synchronous actions.
+static int signal_handling_hook(void) {
+    shell_state_t *shell_state = shell_state_get();
+
+    if (shell_state->sigchld_received) {
+        printf("Handling SIGCHLD\n");
+        shell_state->sigchld_received = false;
+        handle_sigchld_events();
+        rl_on_new_line();
+        rl_redisplay();
+    }
+
+    if (shell_state->sigint_received) {
+        shell_state->sigint_received = false;
+        handle_sigint_event();
+    }
+
+    return 0; // continue readline
+}
+
 int shell_init() {
     // Ignore SIGTTOU and SIGTTIN signals: standard practice for job control
     // so background jobs don't stop when trying to read/write to the terminal.
@@ -72,9 +92,11 @@ int shell_init() {
 
     // Disable buffering for stdout. Ensures immediate output for status messages.
     setbuf(stdout, NULL);
-
+    rl_event_hook = signal_handling_hook;
     return 0;
 }
+
+
 
 void shell_cleanup() {
     history_trim();
@@ -82,19 +104,6 @@ void shell_cleanup() {
     shell_state_free();
 }
 
-// Check atomic flags set by signal handlers and perform necessary synchronous actions.
-static inline void signal_handling() {
-    shell_state_t *shell_state = shell_state_get();
-    
-    if (shell_state->sigint_received) {
-        shell_state->sigint_received = false;
-        handle_sigint_event();
-    }
-    if (shell_state->sigchld_received) {
-        shell_state->sigchld_received = false;
-        handle_sigchld_events();
-    }
-}
 
 int shell_run() {
     shell_state_t *shell_state = shell_state_get();
@@ -104,16 +113,31 @@ int shell_run() {
     // Flag to track if an exit warning for running jobs has been given
     bool warning_exit = false;
     do {
-        signal_handling();
+        if (shell_state->sigchld_received) {
+            shell_state->sigchld_received = false;
+            handle_sigchld_events();
+            rl_on_new_line();
+            rl_redisplay();
+        }
+        if (shell_state->sigint_received) {
+            shell_state->sigint_received = false;
+            handle_sigint_event();
+        }
+
+        errno = 0;
         input = readline("$ ");
-        if (input == NULL) {
-            // If running jobs exist, show a warning on first Ctrl+D
+        if (!input) {
+            if (errno == EINTR) {
+                // readline was interrupted by a signal, go back to loop immediately
+                continue;
+            }
+
+            // EOF (Ctrl+D)
             if (shell_state->running_jobs_count > 0 && !warning_exit) {
                 printf("you have running jobs\n");
                 warning_exit = true;
-                continue;  // Continue the loop, don't exit yet
+                continue;
             } else {
-                // Exit if no running jobs or if confirmed (second Ctrl+D)
                 printf("exit\n");
                 break;
             }
@@ -123,7 +147,6 @@ int shell_run() {
         tokenizer_init(tz, input);
         
         ast_node_t *ast_node = parser_create_ast(tz);
-        print_ast(ast_node, 0);
         history_save_command(tz->input);
 
         exec_node(ast_node);
