@@ -31,6 +31,7 @@ typedef struct shell_state_t{
     hashmap_t *environment;
 
     char *cwd;
+    char *last_fg_cmd;
     int last_exit_status;
     bool should_exit;
 
@@ -42,7 +43,7 @@ typedef struct shell_state_t{
     // --- Signal State (Accessed by signal handlers) ---
     volatile sig_atomic_t sigint_received;
     volatile sig_atomic_t sigchld_received;
-    volatile sig_atomic_t sigquit_received;
+    volatile sig_atomic_t sigstop_received;
 } shell_state_t;
 
 /**

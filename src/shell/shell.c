@@ -7,6 +7,9 @@
  */
 
 #include "shell.h"
+#include <signal.h>
+#include <string.h>
+#include <errno.h>
 
 
 static tokenizer_t *tz;
@@ -16,18 +19,56 @@ int shell_init() {
     // so background jobs don't stop when trying to read/write to the terminal.
     signal(SIGTTOU, SIG_IGN);
     signal(SIGTTIN, SIG_IGN);
+    
+    // The shell should ignore terminal stop signals itself (so it is not stopped).
+    // Child processes will still receive SIGTSTP when user presses Ctrl+Z.
+    signal(SIGTSTP, SIG_IGN);
 
-    // Set signal handlers to set atomic flags instead of performing logic
-    signal(SIGINT, sigint_handler);
-    signal(SIGCHLD, sigchld_handler);
+    // Initialize shell state early so signal handlers can safely access it.
+    shell_state_init();
 
-    // Give terminal control to the shell's process group. Essential for job control.
-    if (tcsetpgrp(STDIN_FILENO, getpgrp()) == -1) {
-        perror("tcsetpgrp failed");
+    // create tokenizer after state init
+    tz = tokenizer_new();
+
+    // Register signal handlers using sigaction for more predictable behavior.
+    struct sigaction sa;
+
+    // SIGINT: set handler, allow restart of syscalls (optional)
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = sigint_handler;
+    sa.sa_flags = SA_RESTART;
+    if (sigaction(SIGINT, &sa, NULL) == -1) {
+        perror("sigaction(SIGINT)");
         return 1;
     }
-    shell_state_init();
-    tz = tokenizer_new();
+
+    // SIGCHLD: set handler, DO NOT set SA_RESTART so that blocking readline is interrupted
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = sigchld_handler;
+    sa.sa_flags = 0; // important: no SA_RESTART, we want readline to be interrupted
+    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+        perror("sigaction(SIGCHLD)");
+        return 1;
+    }
+
+    // Only try to take terminal control if stdin is a TTY
+    if (isatty(STDIN_FILENO)) {
+        // Put shell in its own process group
+        pid_t shell_pid = getpid();
+        if (setpgid(shell_pid, shell_pid) == -1) {
+            // ignore/setpgid failure if already in pgid
+        }
+
+        // Give terminal control to the shell's process group. Essential for job control.
+        if (tcsetpgrp(STDIN_FILENO, getpgrp()) == -1 && errno != ENOTTY) {
+            perror("tcsetpgrp failed");
+            return 1;
+        }
+    } else {
+        fprintf(stderr, "warning: stdin is not a TTY, job control disabled\n");
+    }
 
     // Disable buffering for stdout. Ensures immediate output for status messages.
     setbuf(stdout, NULL);
@@ -41,6 +82,20 @@ void shell_cleanup() {
     shell_state_free();
 }
 
+// Check atomic flags set by signal handlers and perform necessary synchronous actions.
+static inline void signal_handling() {
+    shell_state_t *shell_state = shell_state_get();
+    
+    if (shell_state->sigint_received) {
+        shell_state->sigint_received = false;
+        handle_sigint_event();
+    }
+    if (shell_state->sigchld_received) {
+        shell_state->sigchld_received = false;
+        handle_sigchld_events();
+    }
+}
+
 int shell_run() {
     shell_state_t *shell_state = shell_state_get();
 
@@ -49,20 +104,7 @@ int shell_run() {
     // Flag to track if an exit warning for running jobs has been given
     bool warning_exit = false;
     do {
-        // --- Signal Handling Block ---
-        // Check atomic flags set by signal handlers and perform necessary synchronous actions.
-        if (shell_state->sigchld_received) {
-            shell_state->sigchld_received = false;
-            handle_sigchld_events();
-        }
-        if (shell_state->sigint_received) {
-            shell_state->sigint_received = false;
-            handle_sigint_event();
-            // Reset exit warning after an interruption (Ctrl+C)
-            warning_exit = false; 
-        }
-        // --- End Signal Handling Block ---
-
+        signal_handling();
         input = readline("$ ");
         if (input == NULL) {
             // If running jobs exist, show a warning on first Ctrl+D
@@ -81,6 +123,7 @@ int shell_run() {
         tokenizer_init(tz, input);
         
         ast_node_t *ast_node = parser_create_ast(tz);
+        print_ast(ast_node, 0);
         history_save_command(tz->input);
 
         exec_node(ast_node);

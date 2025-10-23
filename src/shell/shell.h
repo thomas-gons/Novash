@@ -6,10 +6,20 @@
  * See <https://www.gnu.org/licenses/> for details.
  */
 
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #ifndef __SHELL_H__
 #define __SHELL_H__
 
 #include <stdio.h>
+#include <signal.h>
+#include <string.h>
+#include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
 #include <readline/readline.h>
 #include "shell/state.h"
 #include "shell/signal.h"

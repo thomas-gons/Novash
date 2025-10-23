@@ -46,10 +46,19 @@ The goal is to implement, from scratch the essential components of a modern UNIX
 --- 
 
 ## Build and Run
+
+### Clone the repository
 ```sh
 git clone https://github.com/thomas-gons/Novash.git
 cd Novash
-cmake -B build
-cmake --build build
-./build/Shell
 ```
+
+### Make the utility script executable and run it
+```sh
+# Make the utility script executable and run it
+chmod u+x run.sh
+./run.sh
+```
+Optional flags:
+   -d, --debug   Run in debug mode
+   -h, --help    Show the help message

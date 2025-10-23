@@ -206,7 +206,8 @@ ast_node_t *parser_create_ast(tokenizer_t *tz) {
 
         arr_push(root_node->seq.nodes, next_command);
 
-        if (g_tok.type == TOK_SEMI || g_tok.type == TOK_BG) {
+        // consume any number of consecutive separators (; or &), e.g. "&;" or ";;" or "&;&"
+        while (g_tok.type == TOK_SEMI || g_tok.type == TOK_BG) {
             next_token(tz);
         }
     } while (g_tok.type != TOK_EOF);

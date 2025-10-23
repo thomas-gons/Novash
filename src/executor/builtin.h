@@ -73,6 +73,15 @@ int builtin_echo(int argc, char *argv[]);
  */
 int builtin_exit(int argc, char *argv[]);
 
+
+/* ========================================================================== */
+/*                              JOB CONTROL API                               */
+/* ========================================================================== */
+
+int builtin_fg(int argc, char *argv[]);
+
+int builtin_bg(int argc, char *argv[]);
+
 /**
  * @brief Builtin command to list active background jobs.
  * @param argc Argument count.
