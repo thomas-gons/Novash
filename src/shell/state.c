@@ -76,7 +76,7 @@ void shell_state_init() {
     char cwd_buf[PATH_MAX];
     getcwd(cwd_buf, sizeof(cwd_buf));
     ss->cwd = xstrdup(cwd_buf);
-    
+    ss->last_fg_cmd = NULL;
     ss->last_exit_status = 0;
     ss->should_exit = false;
     

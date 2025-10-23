@@ -58,6 +58,7 @@ function(novash_target_enable_warnings target)
     endif()
 endfunction()
 
+
 # -----------------------
 # Project sources
 # -----------------------

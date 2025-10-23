@@ -8,6 +8,12 @@
 
 #include "signal.h"
 
+void handle_sigint_event() {
+    // Ensure the terminal is clean after interrupt in the readline context
+    rl_on_new_line();
+    rl_replace_line("", 0);
+    rl_redisplay(); // Force prompt redisplay
+}
 
 void handle_sigchld_events() {
     int status;
@@ -24,7 +30,14 @@ void handle_sigchld_events() {
             if (jobs[i].pid == pid) { job_id = i; break; }
         }
         
-        if (job_id == shell_state->jobs_count) continue; 
+        if (job_id == shell_state->jobs_count) {
+            shell_state->jobs[job_id] = (job_t) {
+                .cmd="",
+                .pid=pid,
+                .state=0
+            };
+            shell_state->jobs_count++;
+        }
 
         job_t *job = &jobs[job_id];
         
@@ -44,15 +57,7 @@ void handle_sigchld_events() {
         write(STDOUT_FILENO, buf, strlen(buf));
         write(STDOUT_FILENO, "\n", 1);
         
-        rl_forced_update_display();
     }
-}
-
-void handle_sigint_event() {
-    // Ensure the terminal is clean after interrupt in the readline context
-    rl_on_new_line();
-    rl_replace_line("", 0);
-    rl_redisplay(); // Force prompt redisplay
 }
 
 void sigint_handler(int sig) {

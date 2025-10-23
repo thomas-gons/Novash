@@ -79,7 +79,7 @@ static int run_child(cmd_node_t cmd_node, runner_f_t runner_f) {
         if (handle_redirection(cmd_node) != 0) _exit(1);
         runner_f(cmd_node);
         _exit(0);
-    } else if (pid > 0) {
+      } else if (pid > 0) {
         // --- Parent Process (Shell) ---
         // Put the child in its own process group in the parent too.
         setpgid(pid, pid);
@@ -89,31 +89,21 @@ static int run_child(cmd_node_t cmd_node, runner_f_t runner_f) {
                 shell_state->jobs[shell_state->jobs_count++] = (job_t) {
                     .pid = pid,
                     .state = JOB_RUNNING,
-                    .cmd=cmd_node.raw_str,
+                    /* COPY the raw_str so job owns its string and it won't dangle
+                       after parser_free_ast frees the AST's raw_str */
+                    .cmd = xstrdup(cmd_node.raw_str),
                 };
                 shell_state->running_jobs_count++;
                 printf("[%ld] %d\n", shell_state->jobs_count, pid);
             } else {
                 fprintf(stderr, "Too many background tasks\n");
             }
-            return 0;
         }
-
-         // Foreground handling:
-        int status;
-        // Give terminal control to the child process group.
-        tcsetpgrp(STDIN_FILENO, pid);
-        // Wait for the child to complete execution.
-        waitpid(pid, &status, 0);
-        // Restore terminal control to the shell's process group.
-        tcsetpgrp(STDIN_FILENO, getpgrp());
-        
-        // Return the child's exit status.
-        return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
     } else {
         perror("fork failed");
         return -1;
     }
+    return 0;
 }
 
 /**

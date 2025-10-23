@@ -43,6 +43,15 @@ int builtin_exit(int argc, char *argv[]) {
     return 0;
 }
 
+/* --- JOB_CONTROL --- */
+
+int builtin_bg(int argc, char *argv[]) {
+    return 0;
+}
+
+int builtin_fg(int argc, char *argv[]) {
+    return 0;
+}
 
 int builtin_jobs(int argc, char *argv[]) {
     shell_state_t *shell_state = shell_state_get();
