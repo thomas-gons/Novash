@@ -25,7 +25,7 @@ static int handle_redirection(cmd_node_t cmd_node) {
         // Determine the open flags based on the redirection type.
         oflag = (redir.type == REDIR_IN) ?  O_RDONLY:
                 (redir.type == REDIR_OUT) ? O_WRONLY | O_CREAT | O_TRUNC:
-                                                O_WRONLY | O_CREAT | O_APPEND;
+                                            O_WRONLY | O_CREAT | O_APPEND;
 
         // Open the target file. Permissions are 0644 (rw-r--r--).
         fd[i] = open(redir.target, oflag, 0644);
@@ -61,50 +61,74 @@ static int run_child(cmd_node_t cmd_node, runner_f_t runner_f) {
     shell_state_t *shell_state = shell_state_get();
     pid_t pid = fork();
 
-    if (pid == 0) {
-        // --- Child Process ---
-        // Put the child in its own process group (necessary for job control).
-        setpgid(0, 0);
-        if (!cmd_node.is_bg) {
-            // Foreground job: give the terminal control to the child's process group.
-            tcsetpgrp(STDIN_FILENO, getpid());
-        } else {
-            // Background job: redirect stdout/stderr to /dev/null to prevent output pollution.
-            int devnull = open("/dev/null", O_WRONLY);
-            dup2(devnull, STDOUT_FILENO);
-            dup2(devnull, STDERR_FILENO);
-            close(devnull);
-        }
-        // Handle I/O redirections before execution.
-        if (handle_redirection(cmd_node) != 0) _exit(1);
-        runner_f(cmd_node);
-        _exit(0);
-      } else if (pid > 0) {
-        // --- Parent Process (Shell) ---
-        // Put the child in its own process group in the parent too.
-        setpgid(pid, pid);
-        if (cmd_node.is_bg) {
-            // Background handling: track job and return immediately.
-            if (shell_state->jobs_count < MAX_JOBS) {
-                shell_state->jobs[shell_state->jobs_count++] = (job_t) {
-                    .pid = pid,
-                    .state = JOB_RUNNING,
-                    /* COPY the raw_str so job owns its string and it won't dangle
-                       after parser_free_ast frees the AST's raw_str */
-                    .cmd = xstrdup(cmd_node.raw_str),
-                };
-                shell_state->running_jobs_count++;
-                printf("[%ld] %d\n", shell_state->jobs_count, pid);
-            } else {
-                fprintf(stderr, "Too many background tasks\n");
-            }
-        }
-    } else {
+    if (pid < 0) {
         perror("fork failed");
         return -1;
     }
-    return 0;
+
+    if (pid == 0) {
+        // --- Child Process ---
+        // Put child in its own process group
+        setpgid(0, 0);
+
+        // Handle redirections
+        if (handle_redirection(cmd_node) != 0) _exit(1);
+
+        // Execute command
+        runner_f(cmd_node);
+
+        _exit(0);
+    }
+
+    // --- Parent Process ---
+    // Set child in its own process group
+    setpgid(pid, pid);
+
+    if (!cmd_node.is_bg) {
+        // Foreground job: give terminal control to child PG
+        tcsetpgrp(STDIN_FILENO, pid);
+
+        // Wait for the child or the entire foreground process group
+        int status;
+        if (waitpid(pid, &status, WUNTRACED) == -1) {
+            perror("waitpid failed");
+        }
+
+        // Check if stopped
+        if (WIFSTOPPED(status)) {
+            if (shell_state->jobs_count < MAX_JOBS) {
+                shell_state->jobs[shell_state->jobs_count++] = (job_t){
+                    .pid = pid,
+                    .state = JOB_STOPPED,
+                    .cmd = xstrdup(cmd_node.raw_str),
+                };
+                shell_state->running_jobs_count++;
+                printf("\n[%ld]+  Stopped  %s\n", shell_state->jobs_count, cmd_node.raw_str);
+            }
+        }
+
+        // Restore terminal to shell
+        tcsetpgrp(STDIN_FILENO, getpid());
+
+        return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+
+    } else {
+        // Background job: track job, no terminal control
+        if (shell_state->jobs_count < MAX_JOBS) {
+            shell_state->jobs[shell_state->jobs_count++] = (job_t){
+                .pid = pid,
+                .state = JOB_RUNNING,
+                .cmd = xstrdup(cmd_node.raw_str),
+            };
+            shell_state->running_jobs_count++;
+            printf("[%ld] %d\n", shell_state->jobs_count, pid);
+        } else {
+            fprintf(stderr, "Too many background tasks\n");
+        }
+        return 0;
+    }
 }
+
 
 /**
  * @brief Execution logic for running a builtin command (only used in a child process for pipelines).

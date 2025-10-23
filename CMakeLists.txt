@@ -63,8 +63,6 @@ endfunction()
 # Project sources
 # -----------------------
 set(NOVASH_SOURCES
-    src/main.c
-
     # executor
     src/executor/builtin.c
     src/executor/executor.c
@@ -90,13 +88,35 @@ set(NOVASH_SOURCES
     src/utils/utils.c
 )
 
-# -----------------------
-# Executable target
-# -----------------------
-add_executable(nsh ${NOVASH_SOURCES})
-target_include_directories(nsh PRIVATE src /usr/include/readline)
-target_link_libraries(nsh PRIVATE readline)
+# -- PACKAGES --
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(CRITERION REQUIRED criterion)
+pkg_check_modules(READLINE REQUIRED readline)
+
+# --- Build the core as a library ---
+add_library(novash_core ${NOVASH_SOURCES})
+target_include_directories(novash_core PUBLIC src ${READLINE_INCLUDE_DIRS})
+target_link_libraries(novash_core PUBLIC ${READLINE_LIBRARIES})
+novash_target_enable_warnings(novash_core)
+
+# --- Main executable (shell) ---
+add_executable(nsh src/main.c)
+target_link_libraries(nsh PRIVATE novash_core)
 novash_target_enable_warnings(nsh)
+
+set(TEST_SOURCES
+    tests/test_tokenizer.c
+    tests/test_parser.c
+)
+
+if (TEST_SOURCES)
+    add_executable(tests_novash ${TEST_SOURCES})
+    target_include_directories(tests_novash PRIVATE ${CRITERION_INCLUDE_DIRS} src)
+    target_link_libraries(tests_novash PRIVATE novash_core ${CRITERION_LIBRARIES} ${READLINE_LIBRARIES})
+    enable_testing()
+    add_test(NAME NovashTests COMMAND tests_novash)
+endif()
+
 
 # -----------------------
 # Build-type specific flags

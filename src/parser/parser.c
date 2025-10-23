@@ -39,7 +39,7 @@ static char **parse_arguments(tokenizer_t *tz) {
     
     // ensure argv is NULL-terminated for execvp calls later
     // resize if necessary
-    arr_push(argv, NULL);
+    arr_push_nocount(argv, NULL);
     return argv;
 }
 
@@ -122,7 +122,7 @@ static ast_node_t *parse_command(tokenizer_t *tz) {
     // since the tokenizer stops on a token outside the command,it must be removed
     raw_str_size -= g_tok.raw_length;
     char *raw_str = xmalloc(raw_str_size);
-    memcpy(raw_str, tz->input, raw_str_size);
+    memcpy(raw_str, tz->input + raw_str_start, raw_str_size);
     // strip the trailing space if present
     if (raw_str[raw_str_size - 1] == ' ') raw_str[raw_str_size - 1] = '\0';
 

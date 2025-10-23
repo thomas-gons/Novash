@@ -22,41 +22,34 @@ void handle_sigchld_events() {
     shell_state_t *shell_state = shell_state_get();
     job_t *jobs = shell_state->jobs;
 
-    // Use WUNTRACED to catch stopped processes (Ctrl+Z)
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
         unsigned job_id = 0;
-        // Find the job entry
         for (unsigned i = 0; i < shell_state->jobs_count; i++) {
             if (jobs[i].pid == pid) { job_id = i; break; }
         }
-        
+
         if (job_id == shell_state->jobs_count) {
-            shell_state->jobs[job_id] = (job_t) {
-                .cmd="",
-                .pid=pid,
-                .state=0
-            };
+            job_t stopped_job = (job_t){ .cmd = "", .pid = pid, .state = 0 };
+            shell_state->jobs[job_id] = stopped_job;
+            buf = job_str(stopped_job, job_id);
             shell_state->jobs_count++;
+            continue;
         }
 
         job_t *job = &jobs[job_id];
-        
-        if (WIFSTOPPED(status)) {
-            job->state = JOB_STOPPED;
-        } else if (WIFSIGNALED(status)) {
-            job->state = JOB_KILLED;
-        } else {
-            job->state = JOB_DONE;
-        }
+        if (WIFSTOPPED(status)) job->state = JOB_STOPPED;
+        else if (WIFSIGNALED(status)) job->state = JOB_KILLED;
+        else job->state = JOB_DONE;
         shell_state->running_jobs_count--;
 
-        // Use ANSI codes to display status cleanly
-        write(STDOUT_FILENO, "\n\033[A\033[K", 5); 
-        
         buf = job_str(*job, job_id);
         write(STDOUT_FILENO, buf, strlen(buf));
         write(STDOUT_FILENO, "\n", 1);
-        
+
+        // --- Redraw the prompt and preserve current input ---
+        rl_on_new_line();                   // move to new line
+        rl_replace_line(rl_line_buffer, 0); // keep current line
+        rl_redisplay();                     // redraw prompt + input
     }
 }
 
@@ -70,4 +63,7 @@ void sigchld_handler(int sig) {
     (void)sig;
     shell_state_t *shell_state = shell_state_get();
     shell_state->sigchld_received = true;
+    if (rl_line_buffer != NULL) {
+        rl_done = 1;
+    }
 }
