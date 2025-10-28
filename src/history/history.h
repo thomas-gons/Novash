@@ -14,6 +14,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <readline/history.h>
 #include <linux/limits.h>
 #include <libgen.h>
 #include <sys/types.h>

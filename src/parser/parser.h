@@ -10,8 +10,8 @@
 #define __PARSER_H__
 
 #include <assert.h>
-#include "utils/collections.h"
 #include "tokenizer/tokenizer.h"
+#include "utils/collections.h"
 #include "utils/memory.h"
 
 
@@ -41,11 +41,10 @@ typedef struct {
 } cmd_node_t;
 
 /**
- * @brief AST node representing a pipeline of two commands connected by '|'. 
+ * @brief AST node representing a pipeline of commands connected by '|'.
  */
 typedef struct {
-    struct ast_node_t *left;
-    struct ast_node_t *right;
+    struct ast_node_t **nodes;
 } pipe_node_t;
 
 typedef enum { COND_AND, COND_OR } cond_op_e;
