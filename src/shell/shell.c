@@ -19,11 +19,8 @@ static int signal_handling_hook(void) {
     shell_state_t *shell_state = shell_state_get();
 
     if (shell_state->sigchld_received) {
-        printf("Handling SIGCHLD\n");
         shell_state->sigchld_received = false;
         handle_sigchld_events();
-        rl_on_new_line();
-        rl_redisplay();
     }
 
     if (shell_state->sigint_received) {
@@ -93,6 +90,7 @@ int shell_init() {
     // Disable buffering for stdout. Ensures immediate output for status messages.
     setbuf(stdout, NULL);
     rl_event_hook = signal_handling_hook;
+    using_history();
     return 0;
 }
 
@@ -110,17 +108,6 @@ int shell_run() {
     // Flag to track if an exit warning for running jobs has been given
     bool warning_exit = false;
     do {
-        if (shell_state->sigchld_received) {
-            shell_state->sigchld_received = false;
-            handle_sigchld_events();
-            rl_on_new_line();
-            rl_redisplay();
-        }
-        if (shell_state->sigint_received) {
-            shell_state->sigint_received = false;
-            handle_sigint_event();
-        }
-
         errno = 0;
         input = readline("$ ");
         if (!input) {
@@ -145,7 +132,6 @@ int shell_run() {
         
         ast_node_t *ast_node = parser_create_ast(tz);
         history_save_command(tz->input);
-
         exec_node(ast_node);
         parser_free_ast(ast_node);
         free(input);

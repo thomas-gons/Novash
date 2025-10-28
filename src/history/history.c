@@ -55,7 +55,9 @@ void history_load() {
         // --- Circular Buffer Logic ---
         if (hist->cmd_count < HIST_SIZE) {
             // Buffer not full: add linearly.
+
             hist->cmd_list[hist->cmd_count] = xstrdup(cmd);
+            add_history(cmd);
             hist->timestamps[hist->cmd_count] = ts;
             hist->cmd_count++;
         } else {
@@ -92,6 +94,7 @@ void history_save_command(const char *cmd) {
     // Store the new command in the in-memory buffer.
     hist->cmd_list[idx] = xstrdup(cmd);
     hist->timestamps[idx] = now;
+    add_history(cmd);
 
     // Write command to the physical file.
     fprintf(hist->fp, "%ld;%s\n", now, cmd);

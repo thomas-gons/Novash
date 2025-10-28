@@ -10,6 +10,8 @@
 #define __BUILTIN_H__
 
 #include <stdbool.h>
+#include <signal.h>
+#include <sys/wait.h>
 #include "shell/state.h"
 #include "utils/utils.h"
 #include "history/history.h"

@@ -9,10 +9,16 @@
 #ifndef __EXECUTOR_H__
 #define __EXECUTOR_H__
 
+
+#define _DEFAULT_SOURCE
+
+#include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/signal.h>
 #include <sys/wait.h>
 #include "utils/memory.h"
+#include "executor/jobs.h"
 #include "executor/builtin.h"
 #include "parser/parser.h"
 

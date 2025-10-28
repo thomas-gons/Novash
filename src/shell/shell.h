@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <readline/readline.h>
+#include <readline/history.h>
 #include "shell/state.h"
 #include "shell/signal.h"
 #include "executor/jobs.h"

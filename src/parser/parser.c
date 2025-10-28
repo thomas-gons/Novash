@@ -121,10 +121,14 @@ static ast_node_t *parse_command(tokenizer_t *tz) {
     size_t raw_str_size = tz->pos - raw_str_start;
     // since the tokenizer stops on a token outside the command,it must be removed
     raw_str_size -= g_tok.raw_length;
-    char *raw_str = xmalloc(raw_str_size);
+    char *raw_str = xmalloc(raw_str_size + 1);
     memcpy(raw_str, tz->input + raw_str_start, raw_str_size);
     // strip the trailing space if present
-    if (raw_str[raw_str_size - 1] == ' ') raw_str[raw_str_size - 1] = '\0';
+    if (raw_str[raw_str_size - 1] == ' ') {
+        raw_str[raw_str_size - 1] = '\0';
+    } else {
+        raw_str[raw_str_size] = '\0';
+    }
 
     bool is_bg = g_tok.type == TOK_BG;
 
@@ -146,19 +150,34 @@ static ast_node_t *parse_command(tokenizer_t *tz) {
  * @return pointer to the parsed AST node representing the pipeline
  */
 static ast_node_t *parse_pipeline(tokenizer_t *tz) {
-    ast_node_t *left = parse_command(tz);
     
+    ast_node_t *first_command = parse_command(tz);
+    ast_node_t *node = xmalloc(sizeof(ast_node_t));
+    node->type = NODE_PIPELINE;
+    node->pipe.nodes = NULL;
+    arr_push(node->pipe.nodes, first_command);
+
     // Loop to handle multiple piped commands (e.g., cmd1 | cmd2 | cmd3)
     while (g_tok.type == TOK_PIPE) {
         next_token(tz);
-        ast_node_t *right = parse_command(tz);
-        ast_node_t *node = xmalloc(sizeof(ast_node_t));
-        node->type = NODE_PIPELINE;
-        node->pipe.left = left;
-        node->pipe.right = right;
-        left = node;
+        ast_node_t *next_command = parse_command(tz);
+        if (!next_command) {
+            fprintf(stderr, "Syntax error: expected command after '|'\n");
+            parser_free_ast(node);
+            exit(EXIT_FAILURE);
+        }
+        arr_push(node->pipe.nodes, next_command);
     }
-    return left;
+
+    if (arr_len(node->pipe.nodes) == 1) {
+        // single command, no pipeline needed
+        ast_node_t *single_cmd = node->pipe.nodes[0];
+        arr_free(node->pipe.nodes);
+        free(node);
+        return single_cmd;
+    }
+
+    return node;
 }
 
 /**
@@ -212,7 +231,6 @@ ast_node_t *parser_create_ast(tokenizer_t *tz) {
         }
     } while (g_tok.type != TOK_EOF);
 
-    assert(g_tok.type == TOK_EOF);
     tokenizer_free_token(&g_tok);
     
     return root_node;
@@ -293,9 +311,9 @@ void print_ast(ast_node_t *node, int indent) {
         // for other node types, print their type and recursively
         // print children until cmd nodes are reached
         case NODE_PIPELINE:
-            printf("PIPELINE\n");
-            print_ast(node->pipe.left, indent + 1);
-            print_ast(node->pipe.right, indent + 1);
+            for (size_t i = 0; i < arr_len(node->pipe.nodes); i++) {
+                print_ast(node->pipe.nodes[i], indent + 1);
+            }
             break;
         
         case NODE_CONDITIONAL:
