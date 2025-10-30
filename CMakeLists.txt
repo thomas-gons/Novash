@@ -63,28 +63,33 @@ endfunction()
 # Project sources
 # -----------------------
 set(NOVASH_SOURCES
+    # tokenizer
+    src/tokenizer/tokenizer.c
+    
+    # parser
+    src/parser/parser.c
+
+    # builtins
+    src/builtin/builtin.c
+    src/builtin/history.c
+    src/builtin/job_control.c
+
     # executor
-    src/executor/builtin.c
     src/executor/executor.c
     src/executor/jobs.c
 
     # history
     src/history/history.c
 
-    # parser
-    src/parser/parser.c
-
     # shell
     src/shell/shell.c
     src/shell/state.c
     src/shell/signal.c
 
-    # tokenizer
-    src/tokenizer/tokenizer.c
-
     # utils
-    src/utils/collections.c
+    src/utils/xsys.c
     src/utils/memory.c
+    src/utils/collections.c
     src/utils/utils.c
 )
 
@@ -95,7 +100,7 @@ pkg_check_modules(READLINE REQUIRED readline)
 
 # --- Build the core as a library ---
 add_library(novash_core ${NOVASH_SOURCES})
-target_include_directories(novash_core PUBLIC src ${READLINE_INCLUDE_DIRS})
+target_include_directories(novash_core PUBLIC src external ${READLINE_INCLUDE_DIRS})
 target_link_libraries(novash_core PUBLIC ${READLINE_LIBRARIES})
 novash_target_enable_warnings(novash_core)
 

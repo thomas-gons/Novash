@@ -15,20 +15,25 @@
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
-#include "config.h"
 #include "utils/collections.h"
+#include "config.h"
 
 
 // Forward declarations to avoid circular dependencies
 typedef struct job_t job_t;
 typedef struct history_t history_t;
 
+typedef struct {
+    char *key;
+    char *value;
+} env_var_t;
+
 /**
  * @brief Main structure holding the global state of the Novash shell.
  * This singleton structure is accessed throughout the program via shell_state_get().
  */
 typedef struct shell_state_t{
-    hashmap_t *environment;
+    env_var_t *environment;
 
     char *cwd;
     char *last_fg_cmd;

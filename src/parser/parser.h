@@ -9,9 +9,8 @@
 #ifndef __PARSER_H__
 #define __PARSER_H__
 
-#include <assert.h>
-#include "tokenizer/tokenizer.h"
 #include "utils/collections.h"
+#include "tokenizer/tokenizer.h"
 #include "utils/memory.h"
 
 

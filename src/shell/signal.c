@@ -19,32 +19,40 @@ void handle_sigint_event() {
 void handle_sigchld_events() {
     int status;
     pid_t pid;
-    char *buf;
-    shell_state_t *shell_state = shell_state_get();
+    /* Reap any child (or any process in any group) that changed state */
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED)) > 0) {
+        process_t *p = jobs_find_process_by_pid(pid);
+        job_t *job = p->parent_job;
 
-    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
-
-        job_t *job = shell_state->jobs;
-        unsigned job_id;
-        for (job_id = 0; job != NULL; job_id++, job = job->next) {
-            if (job->pgid == pid) break;
+        if (p == NULL) {
+            fprintf(stderr, "reaper: unknown pid %d\n", (int)pid);
+            continue;
         }
-        if (job == NULL) continue;
 
-        if (WIFSTOPPED(status)) job->state = JOB_STOPPED;
-        else if (WIFSIGNALED(status)) job->state = JOB_KILLED;
-        else job->state = JOB_DONE;
-        shell_state->running_jobs_count--;
+        if (WIFEXITED(status)) {
+            p->state = PROCESS_DONE;
+            p->status = WEXITSTATUS(status);
+            pr_info("reaper: pid %d exited with status %d", (int)pid, p->status);
+            job->live_processes--;
+        } else if (WIFSIGNALED(status)) {
+            p->state = PROCESS_KILLED;
+            p->status = WTERMSIG(status);
+            pr_warn("reaper: pid %d killed by signal %d", (int)pid, p->status);
+            job->live_processes--;
+        } else if (WIFSTOPPED(status)) {
+            p->state = PROCESS_STOPPED;
+            pr_info("reaper: pid %d stopped by signal %d", (int)pid, WSTOPSIG(status));
+            jobs_mark_job_stopped(job);
+        } else if (WIFCONTINUED(status)) {
+            p->state = PROCESS_RUNNING;
+            pr_info("reaper: pid %d continued", (int)pid);
+        } else {
+            pr_warn("reaper: pid %d unknown status 0x%x", (int)pid, status);
+        }
+    }
 
-        buf = jobs_job_str(job, job_id);
-        write(STDOUT_FILENO, buf, strlen(buf));
-        write(STDOUT_FILENO, "\n", 1);
-        free(buf);
-        
-        // --- Redraw the prompt and preserve current input ---
-        rl_on_new_line();                   // move to new line
-        rl_replace_line(rl_line_buffer, 0); // keep current line
-        rl_redisplay();                     // redraw prompt + input
+    if (pid < 0 && errno != ECHILD) {
+        perror("waitpid");
     }
 }
 

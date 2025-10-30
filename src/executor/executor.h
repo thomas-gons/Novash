@@ -1,33 +1,36 @@
 /*
- * Novash — a minimalist shell implementation
- * Copyright (C) 2025 Thomas Gons
+ * Novash — Minimalist shell implementation
+ * Executor module: executes AST nodes (commands, pipelines, sequences, conditionals)
  *
- * This file is licensed under the GNU General Public License v3 or later.
- * See <https://www.gnu.org/licenses/> for details.
+ * Copyright (C) 2025 Thomas Gons
+ * Licensed under the GNU General Public License v3 or later
+ * https://www.gnu.org/licenses/
  */
 
 #ifndef __EXECUTOR_H__
 #define __EXECUTOR_H__
-
 
 #define _DEFAULT_SOURCE
 
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
-#include <sys/signal.h>
-#include <sys/wait.h>
+#include <poll.h>
+
+#include "utils/log.h"
+#include "utils/xsys.h"
 #include "utils/memory.h"
+#include "shell/signal.h"
+#include "builtin/builtin.h"
 #include "executor/jobs.h"
-#include "executor/builtin.h"
 #include "parser/parser.h"
 
-
 /**
- * @brief Main execution entry point. Traverses the AST and dispatches execution
- * based on the node type (pipeline, command, logical operator).
- * @param ast_node The root node of the Abstract Syntax Tree.
- * @return int The exit status of the executed command or operation.
+ * @brief Execute an AST node.
+ * Traverses the node and dispatches execution according to its type
+ * (pipeline, command, logical operator, etc.).
+ * @param ast_node Root AST node to execute
+ * @return Exit status of the command
  */
 int exec_node(ast_node_t *ast_node);
 
