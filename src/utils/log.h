@@ -5,7 +5,6 @@
  * This file is licensed under the GNU General Public License v3 or later.
  * See <https://www.gnu.org/licenses/> for details.
  */
-
 #ifndef __LOG_H__
 #define __LOG_H__
 
@@ -46,11 +45,38 @@ static inline void log_msg(const char *color, const char *level,
     fputs(buf, stderr);
 }
 
-#define pr_info(fmt, ...) log_msg(BLUE, "INFO", __FILE__, __LINE__, fmt, ##__VA_ARGS__)
-#define pr_warn(fmt, ...) log_msg(YELLOW, "WARN", __FILE__, __LINE__, fmt, ##__VA_ARGS__)
-#define pr_err(fmt, ...)  log_msg(RED,   "ERR", __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+typedef enum {
+    LOG_LEVEL_NONE  = 0,
+    LOG_LEVEL_ERR   = 1,
+    LOG_LEVEL_WARN  = 2,
+    LOG_LEVEL_INFO  = 3,
+    LOG_LEVEL_DEBUG = 4
+} log_level_t;
+
+
+#if LOG_LEVEL >= LOG_LEVEL_INFO
+    #define pr_info(fmt, ...) log_msg(BLUE, "INFO", __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+#else
+    #define pr_info(fmt, ...) do {} while (0)
+#endif
+
+#if LOG_LEVEL >= LOG_LEVEL_WARN
+    #define pr_warn(fmt, ...) log_msg(YELLOW, "WARN", __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+#else
+    #define pr_warn(fmt, ...) do {} while (0)
+#endif
+
+#if LOG_LEVEL >= LOG_LEVEL_ERR
+    #define pr_err(fmt, ...)  log_msg(RED, "ERR", __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+#else
+    #define pr_err(fmt, ...)  do {} while (0)
+#endif
+
+#if LOG_LEVEL >= LOG_LEVEL_DEBUG
+    #define pr_debug(fmt, ...) log_msg("\x1b[35m", "DEBUG", __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+#else
+    #define pr_debug(fmt, ...) do {} while (0)
+#endif
+
 
 #endif // __LOG_H__
-
-
-

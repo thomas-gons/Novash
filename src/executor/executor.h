@@ -18,12 +18,12 @@
 #include <poll.h>
 
 #include "utils/log.h"
-#include "utils/xsys.h"
-#include "utils/memory.h"
 #include "shell/signal.h"
 #include "builtin/builtin.h"
 #include "executor/jobs.h"
 #include "parser/parser.h"
+#include "utils/system/syscall.h"
+#include "utils/system/memory.h"
 
 /**
  * @brief Execute an AST node.

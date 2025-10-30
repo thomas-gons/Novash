@@ -12,63 +12,16 @@
 #include <errno.h>
 
 
-static tokenizer_t *tz;
+static lexer_t *lex;
 
-// Check atomic flags set by signal handlers and perform necessary synchronous actions.
-static int signal_handling_hook(void) {
-    shell_state_t *shell_state = shell_state_get();
-
-    if (shell_state->sigchld_received) {
-        shell_state->sigchld_received = false;
-        handle_sigchld_events();
-    }
-
-    if (shell_state->sigint_received) {
-        shell_state->sigint_received = false;
-        handle_sigint_event();
-    }
-
-    return 0; // continue readline
-}
 
 int shell_init() {
-    // Ignore SIGTTOU and SIGTTIN signals: standard practice for job control
-    // so background jobs don't stop when trying to read/write to the terminal.
-    signal(SIGTTOU, SIG_IGN);
-    signal(SIGTTIN, SIG_IGN);
-    
-    // The shell should ignore terminal stop signals itself (so it is not stopped).
-    // Child processes will still receive SIGTSTP when user presses Ctrl+Z.
-    signal(SIGTSTP, SIG_IGN);
 
     // Initialize shell state early so signal handlers can safely access it.
     shell_state_init();
 
-    // create tokenizer after state init
-    tz = tokenizer_new();
-
-    // Register signal handlers using sigaction for more predictable behavior.
-    struct sigaction sa;
-
-    // SIGINT: set handler, allow restart of syscalls (optional)
-    memset(&sa, 0, sizeof(sa));
-    sigemptyset(&sa.sa_mask);
-    sa.sa_handler = sigint_handler;
-    sa.sa_flags = SA_RESTART;
-    if (sigaction(SIGINT, &sa, NULL) == -1) {
-        perror("sigaction(SIGINT)");
-        return 1;
-    }
-
-    // SIGCHLD: set handler, DO NOT set SA_RESTART so that blocking readline is interrupted
-    memset(&sa, 0, sizeof(sa));
-    sigemptyset(&sa.sa_mask);
-    sa.sa_handler = sigchld_handler;
-    sa.sa_flags = 0; // important: no SA_RESTART, we want readline to be interrupted
-    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
-        perror("sigaction(SIGCHLD)");
-        return 1;
-    }
+    // create lexer after state init
+    lex = lexer_new();
 
     // Only try to take terminal control if stdin is a TTY
     if (isatty(STDIN_FILENO)) {
@@ -89,18 +42,18 @@ int shell_init() {
 
     // Disable buffering for stdout. Ensures immediate output for status messages.
     setbuf(stdout, NULL);
-    rl_event_hook = signal_handling_hook;
+    // rl_event_hook = signal_handling_hook;
     using_history();
     return 0;
 }
 
 void shell_cleanup() {
     history_trim();
-    tokenizer_free(tz);
+    lexer_free(lex);
     shell_state_free();
 }
 
-int shell_run() {
+int shell_loop() {
     shell_state_t *shell_state = shell_state_get();
 
     char *input = NULL;
@@ -128,10 +81,10 @@ int shell_run() {
         }
 
         warning_exit = false;
-        tokenizer_init(tz, input);
+        lexer_init(lex, input);
         
-        ast_node_t *ast_node = parser_create_ast(tz);
-        history_save_command(tz->input);
+        ast_node_t *ast_node = parser_create_ast(lex);
+        history_save_command(lex->input);
         exec_node(ast_node);
         parser_free_ast(ast_node);
         free(input);

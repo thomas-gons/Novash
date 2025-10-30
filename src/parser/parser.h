@@ -9,9 +9,9 @@
 #ifndef __PARSER_H__
 #define __PARSER_H__
 
+#include "lexer/lexer.h"
 #include "utils/collections.h"
-#include "tokenizer/tokenizer.h"
-#include "utils/memory.h"
+#include "utils/system/memory.h"
 
 
 typedef enum { REDIR_IN, REDIR_OUT, REDIR_APPEND } redirection_e;
@@ -94,10 +94,10 @@ typedef struct ast_node_t {
 /**
  * @brief Parses the input tokens into an Abstract Syntax Tree (AST) representing a sequence of commands.
  * Recursively calls other parsing functions according to the grammar.
- * @param tz Pointer to the tokenizer.
+ * @param lex Pointer to the lexer.
  * @return Pointer to the root AST node representing the sequence.
  */
-ast_node_t *parser_create_ast(tokenizer_t *tz);
+ast_node_t *parser_create_ast(lexer_t *lex);
 
 /**
  * @brief Frees the memory allocated for the AST.

@@ -20,6 +20,31 @@ option(ENABLE_SANITIZERS "Enable ASAN/UBSAN in Debug builds" OFF)
 option(WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 
 # -----------------------
+# Log level configuration
+# -----------------------
+set(LOG_LEVEL "NONE" CACHE STRING "Set log level: NONE, ERR, WARN, INFO, DEBUG")
+set_property(CACHE LOG_LEVEL PROPERTY STRINGS NONE ERR WARN INFO DEBUG)
+
+# Map string values to integers
+if(LOG_LEVEL STREQUAL "NONE")
+    set(LOG_LEVEL_INT 0)
+elseif(LOG_LEVEL STREQUAL "ERR")
+    set(LOG_LEVEL_INT 1)
+elseif(LOG_LEVEL STREQUAL "WARN")
+    set(LOG_LEVEL_INT 2)
+elseif(LOG_LEVEL STREQUAL "INFO")
+    set(LOG_LEVEL_INT 3)
+elseif(LOG_LEVEL STREQUAL "DEBUG")
+    set(LOG_LEVEL_INT 4)
+else()
+    message(WARNING "Unknown LOG_LEVEL='${LOG_LEVEL}', defaulting to INFO")
+    set(LOG_LEVEL_INT 3)
+endif()
+
+add_compile_definitions(LOG_LEVEL=${LOG_LEVEL_INT})
+message(STATUS "Log level set to ${LOG_LEVEL} (${LOG_LEVEL_INT})")
+
+# -----------------------
 # C standard
 # -----------------------
 set(CMAKE_C_STANDARD 23)
@@ -58,13 +83,12 @@ function(novash_target_enable_warnings target)
     endif()
 endfunction()
 
-
 # -----------------------
 # Project sources
 # -----------------------
 set(NOVASH_SOURCES
-    # tokenizer
-    src/tokenizer/tokenizer.c
+    # lexer
+    src/lexer/lexer.c
     
     # parser
     src/parser/parser.c
@@ -87,8 +111,8 @@ set(NOVASH_SOURCES
     src/shell/signal.c
 
     # utils
-    src/utils/xsys.c
-    src/utils/memory.c
+    src/utils/system/syscall.c
+    src/utils/system/memory.c
     src/utils/collections.c
     src/utils/utils.c
 )
@@ -110,7 +134,7 @@ target_link_libraries(nsh PRIVATE novash_core)
 novash_target_enable_warnings(nsh)
 
 set(TEST_SOURCES
-    tests/test_tokenizer.c
+    tests/test_lexer.c
     tests/test_parser.c
 )
 
@@ -121,7 +145,6 @@ if (TEST_SOURCES)
     enable_testing()
     add_test(NAME NovashTests COMMAND tests_novash)
 endif()
-
 
 # -----------------------
 # Build-type specific flags
