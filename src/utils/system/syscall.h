@@ -1,15 +1,17 @@
-#ifndef __XSYS_H__
-#define __XSYS_H__
+#ifndef __SYSCALL_H__
+#define __SYSCALL_H__
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
 #include <unistd.h>
-#include <stdbool.h>
-#include <sys/signalfd.h>
 #include <signal.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/wait.h>
+#include <sys/signalfd.h>
+#include <stdbool.h>
+#include <stdio.h>  // for perror
+#include <stdlib.h> // for exit
 
 #define EXIT_CHILD_FAILURE 127
 
@@ -25,4 +27,4 @@ void xwrite(int fd, const void *buf, size_t count);
 void xsigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 int xsignalfd(int fd, const sigset_t *mask, int flags);
 
-#endif // __XSYS_H__
+#endif // __SYSCALL_H__

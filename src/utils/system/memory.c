@@ -6,7 +6,7 @@
  * See <https://www.gnu.org/licenses/> for details.
  */
 
-#include "utils/memory.h"
+#include "memory.h"
 
 
 void *xmalloc(size_t size) {

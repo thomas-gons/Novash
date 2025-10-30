@@ -26,7 +26,7 @@
 #include "shell/signal.h"
 #include "executor/jobs.h"
 #include "history/history.h"
-#include "tokenizer/tokenizer.h"
+#include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "executor/executor.h"
 
@@ -47,7 +47,7 @@ int shell_init();
  * exit while running background jobs.
  * * @return The final exit status of the shell process (0 on clean exit).
  */
-int shell_run();
+int shell_loop();
 
 /**
  * @brief Performs necessary cleanup before the shell terminates.

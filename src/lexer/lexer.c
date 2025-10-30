@@ -6,33 +6,33 @@
  * See <https://www.gnu.org/licenses/> for details.
  */
 
-#include "tokenizer.h"
+#include "lexer.h"
 
 
-tokenizer_t *tokenizer_new() {
-    tokenizer_t *tz = xmalloc(sizeof(tokenizer_t));
-    tz->input = NULL;
-    tz->pos = 0;
-    tz->length = 0;
-    return tz;
+lexer_t *lexer_new() {
+    lexer_t *lex = xmalloc(sizeof(lexer_t));
+    lex->input = NULL;
+    lex->pos = 0;
+    lex->length = 0;
+    return lex;
 }
 
-void tokenizer_init(tokenizer_t *tz, char *input) {
-    if (tz->input) free(tz->input);
+void lexer_init(lexer_t *lex, char *input) {
+    if (lex->input) free(lex->input);
     
-    tz->input = xstrdup(input);
-    tz->pos = 0;
-    tz->length = strlen(input);
+    lex->input = xstrdup(input);
+    lex->pos = 0;
+    lex->length = strlen(input);
 }
 
-void tokenizer_free(tokenizer_t *tz) {
-    if (!tz) return;
+void lexer_free(lexer_t *lex) {
+    if (!lex) return;
 
-    if (tz->input) free(tz->input);
-    free(tz);
+    if (lex->input) free(lex->input);
+    free(lex);
 }
 
-void tokenizer_free_token(token_t *tok) {
+void lexer_free_token(token_t *tok) {
     if (tok && tok->value) {
         free(tok->value);
         tok->value = NULL;
@@ -41,32 +41,32 @@ void tokenizer_free_token(token_t *tok) {
 
 /**
  * peek the current character without advancing the position
- * @param tz pointer to the tokenizer
+ * @param lex pointer to the lexer
  * @return current character or '\0' if at the end of input
  */
-static char peek(tokenizer_t *tz) {
-    if (tz->pos >= tz->length) return '\0';
-    return tz->input[tz->pos];
+static char peek(lexer_t *lex) {
+    if (lex->pos >= lex->length) return '\0';
+    return lex->input[lex->pos];
 }
 
 /**
  * advance the position and return the current character
- * @param tz pointer to the tokenizer
+ * @param lex pointer to the lexer
  * @return current character or '\0' if at the end of input
  */
-static char advance(tokenizer_t *tz) {
-    if (tz->pos >= tz->length) return '\0';
-    return tz->input[tz->pos++];
+static char advance(lexer_t *lex) {
+    if (lex->pos >= lex->length) return '\0';
+    return lex->input[lex->pos++];
 }
 
 /**
  * skip all forward whitespaces and tabs
- * @param tz pointer to the tokenizer
+ * @param lex pointer to the lexer
  */
-static void skip_whitespaces(tokenizer_t *tz) {
+static void skip_whitespaces(lexer_t *lex) {
     char c;
-    while ((c = peek(tz)) == ' ' || c == '\t') {
-        advance(tz);
+    while ((c = peek(lex)) == ' ' || c == '\t') {
+        advance(lex);
     }
 }
 
@@ -84,12 +84,12 @@ static bool is_metachar(char c) {
  * but are included in the 'raw_length' count. Extraction stops upon 
  * unquoted whitespace or an unquoted metacharacter.
  *
- * @param tz Pointer to the tokenizer state.
+ * @param lex Pointer to the lexer state.
  * @param buf Buffer to store the processed (unquoted) word value.
  * @param buf_cap Initial capacity of the buffer.
  * @return The total **raw length** (including quotes) of the word consumed.
  */
-static size_t handle_word_token(tokenizer_t *tz, char *buf, size_t buf_cap) {
+static size_t handle_word_token(lexer_t *lex, char *buf, size_t buf_cap) {
     size_t length = 0;
     size_t raw_length = 0;
 
@@ -98,14 +98,14 @@ static size_t handle_word_token(tokenizer_t *tz, char *buf, size_t buf_cap) {
 
     char c;
     // loop until reaching end of input, whitespace, or metacharacter
-    while ((c = peek(tz)) != '\0') {
-        if (c == '\'' && !in_dq) { in_sq = !in_sq; advance(tz); raw_length++; continue; }
-        if (c == '\"' && !in_sq) { in_dq = !in_dq; advance(tz); raw_length++; continue; }
+    while ((c = peek(lex)) != '\0') {
+        if (c == '\'' && !in_dq) { in_sq = !in_sq; advance(lex); raw_length++; continue; }
+        if (c == '\"' && !in_sq) { in_dq = !in_dq; advance(lex); raw_length++; continue; }
         if (!in_sq && !in_dq && ((c == ' ' || c == '\t') || is_metachar(c))) break;
         
         // resize buffer if needed (double its size)
         if (length == buf_cap) { buf_cap *= 2; buf = (char*) xrealloc(buf, buf_cap);}
-        buf[length++] = advance(tz);
+        buf[length++] = advance(lex);
         raw_length++;
     }
 
@@ -116,34 +116,34 @@ static size_t handle_word_token(tokenizer_t *tz, char *buf, size_t buf_cap) {
     return raw_length;
 }
 
-token_t tokenizer_next_token(tokenizer_t *tz) {
+token_t lexer_next_token(lexer_t *lex) {
 
-    skip_whitespaces(tz);
-    char c = peek(tz);
+    skip_whitespaces(lex);
+    char c = peek(lex);
     switch (c) {
         case '|': {
-            advance(tz);
-            if (peek(tz) == '|') { advance(tz); return (token_t){TOK_OR, NULL, 2}; }
+            advance(lex);
+            if (peek(lex) == '|') { advance(lex); return (token_t){TOK_OR, NULL, 2}; }
             else return (token_t){TOK_PIPE, NULL, 1};
         }
         case '&': {
-            advance(tz);
-            if (peek(tz) == '&') { advance(tz); return (token_t){TOK_AND, NULL, 2}; }
+            advance(lex);
+            if (peek(lex) == '&') { advance(lex); return (token_t){TOK_AND, NULL, 2}; }
             else return (token_t){TOK_BG, NULL, 1};
         }
         case '>': {
-            advance(tz);
-            if (peek(tz) == '>') { advance(tz); return (token_t){TOK_REDIR_APPEND, NULL, 2}; }
+            advance(lex);
+            if (peek(lex) == '>') { advance(lex); return (token_t){TOK_REDIR_APPEND, NULL, 2}; }
             else return (token_t){TOK_REDIR_OUT, NULL, 1};
         }
-        case '<': { advance(tz); return (token_t){TOK_REDIR_IN, NULL, 1}; }
-        case ';': { advance(tz); return (token_t) {TOK_SEMI, NULL, 1}; }
-        case '\0': { advance(tz); return (token_t) {TOK_EOF, NULL, 0}; }
+        case '<': { advance(lex); return (token_t){TOK_REDIR_IN, NULL, 1}; }
+        case ';': { advance(lex); return (token_t) {TOK_SEMI, NULL, 1}; }
+        case '\0': { advance(lex); return (token_t) {TOK_EOF, NULL, 0}; }
         default: {
             
             size_t buf_cap = 64;
             char *buf = xmalloc(buf_cap);
-            size_t raw_length = handle_word_token(tz, buf, buf_cap);
+            size_t raw_length = handle_word_token(lex, buf, buf_cap);
 
             // Check for File Descriptor (FD) token:
             // An FD is recognized only if the token is a bare, unquoted number
@@ -151,7 +151,7 @@ token_t tokenizer_next_token(tokenizer_t *tz) {
             char *end;
             strtol(buf, &end, 10);
             if (*end == '\0' && strlen(buf) == raw_length) {
-                c = peek(tz);
+                c = peek(lex);
                 if (c == '>' || c == '<') return (token_t) {TOK_FD, buf, raw_length};
             }
             
@@ -160,7 +160,7 @@ token_t tokenizer_next_token(tokenizer_t *tz) {
     }
 }
 
-size_t tokenizer_token_str(token_t tok, char *buf, size_t buf_sz) {
+size_t lexer_token_str(token_t tok, char *buf, size_t buf_sz) {
     char *fixed = NULL;
     char *fmt = NULL;
     int needed;

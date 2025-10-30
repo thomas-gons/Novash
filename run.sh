@@ -34,7 +34,7 @@ while [[ $# -gt 0 ]]; do
         -d|--debug)
             BUILD_CONFIG="Debug"
             BUILD_SUB_DIR="debug"
-            CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON"
+            CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON -DLOG_LEVEL=INFO"
             shift
             ;;
         -c|--clean)

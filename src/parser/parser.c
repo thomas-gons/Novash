@@ -12,12 +12,12 @@
 static token_t g_tok = {.type=TOK_EOF, .value=NULL};
 
 /**
- * @brief Simple wrapper to get the next token from the tokenizer
- * @param tz pointer to the tokenizer
+ * @brief Simple wrapper to get the next token from the lexer
+ * @param lex pointer to the lexer
  */
-static inline void next_token(tokenizer_t *tz) {
-    tokenizer_free_token(&g_tok);
-    g_tok = tokenizer_next_token(tz);
+static inline void next_token(lexer_t *lex) {
+    lexer_free_token(&g_tok);
+    g_tok = lexer_next_token(lex);
 }
 
 /**
@@ -25,16 +25,16 @@ static inline void next_token(tokenizer_t *tz) {
  * Duplicates each argument string into argv_buf, resizing it as needed.
  * The array is NULL-terminated for exec-family functions.
  * 
- * @param tz            Tokenizer instance.
+ * @param lex            lexer instance.
  * @return Number of parsed arguments (excluding NULL).
  */
-static char **parse_arguments(tokenizer_t *tz) {
+static char **parse_arguments(lexer_t *lex) {
     char **argv = NULL;
 
     while (g_tok.type == TOK_WORD) {
         // the global token value is continually overwritten thus we need to xstrdup
         arrpush(argv, xstrdup(g_tok.value));
-        next_token(tz);
+        next_token(lex);
     }
     
     // ensure argv is NULL-terminated for execvp calls later
@@ -43,15 +43,15 @@ static char **parse_arguments(tokenizer_t *tz) {
 }
 
 /**
- * @brief brief Parse I/O redirections (e.g., <, >, >>, 2>) from the tokenizer.
+ * @brief brief Parse I/O redirections (e.g., <, >, >>, 2>) from the lexer.
  * Fills redir_buf with redirection entries, resizing as needed.
  * Each target filename is duplicated for later use.
  * 
- * @param tz              Tokenizer instance.
+ * @param lex              lexer instance.
  * @throw exit the program if the redirection is malformed
  * @return Number of parsed redirections.
  */
-static redirection_t *parse_redirection(tokenizer_t *tz) {
+static redirection_t *parse_redirection(lexer_t *lex) {
     redirection_t *redir = NULL;
 
     // parse redirections that should appear as : [FD] REDIR_TYPE FILENAME
@@ -61,9 +61,9 @@ static redirection_t *parse_redirection(tokenizer_t *tz) {
         redirection_t r = {0};
 
         if (g_tok.type == TOK_FD) {
-            // no need to check for errors here as tokenizer would have handled it
+            // no need to check for errors here as lexer would have handled it
             r.fd = (int) strtol(g_tok.value, NULL, 10);
-            next_token(tz);
+            next_token(lex);
         }
 
         // determine redirection type and set default fd if not specified
@@ -86,7 +86,7 @@ static redirection_t *parse_redirection(tokenizer_t *tz) {
                 exit(EXIT_FAILURE);
         }
 
-        next_token(tz);
+        next_token(lex);
 
         if (g_tok.type != TOK_WORD) {
             fprintf(stderr, "Expected filename after redirection\n");
@@ -96,32 +96,32 @@ static redirection_t *parse_redirection(tokenizer_t *tz) {
         // same reason as argv, need to xstrdup
         r.target = xstrdup(g_tok.value);
         arrpush(redir, r);
-        next_token(tz);
+        next_token(lex);
     }
     return redir;
 } 
 
 /**
- * @brief Parse a simple command from the tokenizer
- * @param tz pointer to the tokenizer
+ * @brief Parse a simple command from the lexer
+ * @param lex pointer to the lexer
  * @return pointer to the parsed AST node representing the command
  */
-static ast_node_t *parse_command(tokenizer_t *tz) {
+static ast_node_t *parse_command(lexer_t *lex) {
     // safety check
     if (g_tok.type != TOK_WORD) return NULL;
 
     // will be used to extract the entire raw command string later
-    size_t raw_str_start = tz->pos - strlen(g_tok.value);
+    size_t raw_str_start = lex->pos - strlen(g_tok.value);
 
-    char **argv = parse_arguments(tz);    
+    char **argv = parse_arguments(lex);    
 
-    redirection_t *redir = parse_redirection(tz);
+    redirection_t *redir = parse_redirection(lex);
 
-    size_t raw_str_size = tz->pos - raw_str_start;
-    // since the tokenizer stops on a token outside the command,it must be removed
+    size_t raw_str_size = lex->pos - raw_str_start;
+    // since the lexer stops on a token outside the command,it must be removed
     raw_str_size -= g_tok.raw_length;
     char *raw_str = xmalloc(raw_str_size + 1);
-    memcpy(raw_str, tz->input + raw_str_start, raw_str_size);
+    memcpy(raw_str, lex->input + raw_str_start, raw_str_size);
     // strip the trailing space if present
     if (raw_str[raw_str_size - 1] == ' ') {
         raw_str[raw_str_size - 1] = '\0';
@@ -145,12 +145,12 @@ static ast_node_t *parse_command(tokenizer_t *tz) {
 
 /**
  * @brief Parse a pipeline of commands connected by '|'.
- * @param tz pointer to the tokenizer
+ * @param lex pointer to the lexer
  * @return pointer to the parsed AST node representing the pipeline
  */
-static ast_node_t *parse_pipeline(tokenizer_t *tz) {
+static ast_node_t *parse_pipeline(lexer_t *lex) {
     
-    ast_node_t *first_command = parse_command(tz);
+    ast_node_t *first_command = parse_command(lex);
     ast_node_t *node = xmalloc(sizeof(ast_node_t));
     node->type = NODE_PIPELINE;
     node->pipe.nodes = NULL;
@@ -158,8 +158,8 @@ static ast_node_t *parse_pipeline(tokenizer_t *tz) {
 
     // Loop to handle multiple piped commands (e.g., cmd1 | cmd2 | cmd3)
     while (g_tok.type == TOK_PIPE) {
-        next_token(tz);
-        ast_node_t *next_command = parse_command(tz);
+        next_token(lex);
+        ast_node_t *next_command = parse_command(lex);
         if (!next_command) {
             fprintf(stderr, "Syntax error: expected command after '|'\n");
             parser_free_ast(node);
@@ -180,18 +180,18 @@ static ast_node_t *parse_pipeline(tokenizer_t *tz) {
 }
 
 /**
- * @brief Parse a conditional command (&& or ||) using the tokenizer to determine the operator.
- * @param tz pointer to the tokenizer
+ * @brief Parse a conditional command (&& or ||) using the lexer to determine the operator.
+ * @param lex pointer to the lexer
  * @return pointer to the parsed AST node representing the conditional command
  */
-static ast_node_t *parse_conditional(tokenizer_t *tz) {
-    ast_node_t *left = parse_pipeline(tz);
+static ast_node_t *parse_conditional(lexer_t *lex) {
+    ast_node_t *left = parse_pipeline(lex);
     
     // Loop to handle multiple conditionals (e.g., cmd1 && cmd2 || cmd3)
     while (g_tok.type == TOK_AND || g_tok.type == TOK_OR) {
         cond_op_e op = g_tok.type == TOK_AND ? COND_AND: COND_OR;
-        next_token(tz);
-        ast_node_t *right = parse_pipeline(tz);
+        next_token(lex);
+        ast_node_t *right = parse_pipeline(lex);
         ast_node_t *node = xmalloc(sizeof(ast_node_t));
         node->type = NODE_CONDITIONAL;
         node->cond.left = left;
@@ -202,8 +202,8 @@ static ast_node_t *parse_conditional(tokenizer_t *tz) {
     return left;
 }
 
-ast_node_t *parser_create_ast(tokenizer_t *tz) {
-    next_token(tz);
+ast_node_t *parser_create_ast(lexer_t *lex) {
+    next_token(lex);
 
     if (g_tok.type == TOK_EOF) {
         // g_tok.value is empty no need to free memory
@@ -217,7 +217,7 @@ ast_node_t *parser_create_ast(tokenizer_t *tz) {
 
     // using do-while to ensure at least the first node is added
     do {
-        ast_node_t *next_command = parse_conditional(tz);
+        ast_node_t *next_command = parse_conditional(lex);
         if (next_command == NULL) {
             break;
         }
@@ -226,11 +226,11 @@ ast_node_t *parser_create_ast(tokenizer_t *tz) {
 
         // consume any number of consecutive separators (; or &), e.g. "&;" or ";;" or "&;&"
         while (g_tok.type == TOK_SEMI || g_tok.type == TOK_BG) {
-            next_token(tz);
+            next_token(lex);
         }
     } while (g_tok.type != TOK_EOF);
 
-    tokenizer_free_token(&g_tok);
+    lexer_free_token(&g_tok);
     
     return root_node;
 }

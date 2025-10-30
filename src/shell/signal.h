@@ -15,11 +15,11 @@
 
 #include <stdio.h>
 #include <errno.h>
-#include "utils/xsys.h"
-#include "utils/log.h"
+#include <readline/readline.h>
 #include "shell/state.h"
 #include "executor/jobs.h"
-#include <readline/readline.h>
+#include "utils/system/syscall.h"
+#include "utils/log.h"
 
 
 /**

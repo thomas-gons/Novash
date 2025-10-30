@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include "shell/state.h"
-#include "utils/memory.h"
+#include "utils/system/memory.h"
 
 
 /**

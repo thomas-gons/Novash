@@ -14,8 +14,7 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    int exit_code = shell_run();
-    
+    int exit_code = shell_loop();
     shell_cleanup();
 
     return exit_code;

@@ -21,7 +21,7 @@
 #include <string.h>
 #include "shell/state.h"
 #include "shell/config.h"
-#include "utils/memory.h"
+#include "utils/system/memory.h"
 
 /**
  * @brief Structure managing command line history.

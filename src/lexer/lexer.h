@@ -6,13 +6,13 @@
  * See <https://www.gnu.org/licenses/> for details.
  */
 
-#ifndef __TOKENIZER_H__
-#define __TOKENIZER_H__
+#ifndef __LEXER_H__
+#define __LEXER_H__
 
 #include <stdbool.h>
 #include <stdbool.h>
 #include <string.h>
-#include "utils/memory.h"
+#include "utils/system/memory.h"
 
 
 typedef enum {
@@ -45,39 +45,39 @@ typedef struct {
     char *input;
     size_t pos;
     size_t length;
-} tokenizer_t;
+} lexer_t;
 
 
 /**
- * create a new tokenizer
- * @return pointer to the new tokenizer
+ * create a new lexer
+ * @return pointer to the new lexer
  */
-tokenizer_t *tokenizer_new();
+lexer_t *lexer_new();
 
 /**
- * init all the fields of the tokenizer
- * @param tz the tokenizer
+ * init all the fields of the lexer
+ * @param lex the lexer
  */
-void tokenizer_init(tokenizer_t *tz, char *input);
+void lexer_init(lexer_t *lex, char *input);
 
 /**
- * free the tokenizer and its resources
- * @param tz pointer to the tokenizer to free
+ * free the lexer and its resources
+ * @param lex pointer to the lexer to free
  */
-void tokenizer_free(tokenizer_t *tz);
+void lexer_free(lexer_t *lex);
 
 /**
  * free the token's value if it is non null
  * @param tok pointer to the token to free
  */
-void tokenizer_free_token(token_t *tok);
+void lexer_free_token(token_t *tok);
 
 /**
  * get the next token from the input
- * @param tz pointer to the tokenizer
+ * @param lex pointer to the lexer
  * @return the next token
  */
-token_t tokenizer_next_token(tokenizer_t *tz);
+token_t lexer_next_token(lexer_t *lex);
 
 /**
  * print the token type and value for debugging
@@ -86,7 +86,7 @@ token_t tokenizer_next_token(tokenizer_t *tz);
  * @param buf_sz size of the buffer
  * @return number of characters that would have been written
  */
-size_t tokenizer_token_str(token_t tok, char *buf, size_t buf_sz);
+size_t lexer_token_str(token_t tok, char *buf, size_t buf_sz);
 
 
-#endif // __TOKENIZER_H__
+#endif // __LEXER_H__
