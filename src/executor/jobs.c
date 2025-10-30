@@ -9,17 +9,15 @@
 #include "jobs.h"
 
 
-
-
 process_t *jobs_new_process(cmd_node_t *cmd, bool deep_copy) {
     process_t *process = xcalloc(1, sizeof(process_t));
 
     char **argv_cp = NULL;
     if (deep_copy) {
-        size_t argc = arr_len(cmd->argv);
+        size_t argc = arrlen(cmd->argv);
         argv_cp = xmalloc((argc + 1) * sizeof(char *));
         for (size_t i = 0; i < argc; i++) {
-            arr_push(argv_cp, xstrdup(cmd->argv[i]));
+            argv_cp[i] = xstrdup(cmd->argv[i]);
         }
         argv_cp[argc] = NULL; // ensure NULL-terminated
     } else {
@@ -28,7 +26,7 @@ process_t *jobs_new_process(cmd_node_t *cmd, bool deep_copy) {
 
     redirection_t *redir_cp = NULL;
     if (deep_copy) {
-        size_t redir_count = arr_len(cmd->redir);
+        size_t redir_count = arrlen(cmd->redir);
         if (redir_count > 0) {
             redir_cp = xmalloc((redir_count + 1) * sizeof(redirection_t)); // +1 for sentinel
             for (size_t i = 0; i < redir_count; i++) {
@@ -37,7 +35,7 @@ process_t *jobs_new_process(cmd_node_t *cmd, bool deep_copy) {
                     .type = cmd->redir[i].type,
                     .target = xstrdup(cmd->redir[i].target)
                 };
-                arr_push(redir_cp, r);
+                redir_cp[i] = r;
             }
             redir_cp[redir_count] = (redirection_t){ .fd = -1, .target = NULL }; // sentinel
         }
@@ -209,4 +207,53 @@ char *jobs_last_job_str() {
         job_id++;
     }
     return jobs_job_str(job_ptr, job_id);
+}
+
+void jobs_free() {
+    shell_state_t *shell_state = shell_state_get();
+    job_t *job_ptr = shell_state->jobs;
+    while (job_ptr != NULL) {
+        job_t *next_job = job_ptr->next;
+        jobs_free_job(job_ptr, true);
+        job_ptr = next_job;
+    }
+    shell_state->jobs = NULL;
+    shell_state->jobs_count = 0;
+    shell_state->running_jobs_count = 0;
+}
+
+process_t *jobs_find_process_by_pid(pid_t pgid) {
+    shell_state_t *shell_state = shell_state_get();
+    job_t *job_ptr = shell_state->jobs;
+    while (job_ptr != NULL) {
+        process_t *proc_ptr = job_ptr->first_process;
+        while (proc_ptr != NULL) {
+            if (proc_ptr->pid == pgid) {
+                return proc_ptr;
+            }
+            proc_ptr = proc_ptr->next;
+        }
+        job_ptr = job_ptr->next;
+    }
+    return NULL;
+}
+
+job_t *jobs_find_job_by_pgid(pid_t pgid) {
+    shell_state_t *shell_state = shell_state_get();
+    job_t *job_ptr = shell_state->jobs;
+    while (job_ptr != NULL) {
+        if (job_ptr->pgid == pgid) {
+            return job_ptr;
+        }
+        job_ptr = job_ptr->next;
+    }
+    return NULL;
+}
+
+/* mark all running processes as stopped (called when a stop is observed) */
+void jobs_mark_job_stopped(job_t *job) {
+    process_t *p;
+    for (p = job->first_process; p; p = p->next) {
+        if (p->state == PROCESS_RUNNING) p->state = PROCESS_STOPPED;
+    }
 }

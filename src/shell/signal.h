@@ -9,9 +9,14 @@
 #ifndef __SIGNAL_H__
 #define __SIGNAL_H__
 
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
+
 #include <stdio.h>
-#include <sys/signal.h>
-#include <sys/wait.h>
+#include <errno.h>
+#include "utils/xsys.h"
+#include "utils/log.h"
 #include "shell/state.h"
 #include "executor/jobs.h"
 #include <readline/readline.h>

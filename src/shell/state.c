@@ -12,14 +12,14 @@
 #include "history/history.h"
 #include "executor/jobs.h"
 
-static shell_state_t *ss;
+static shell_state_t *sh_state = NULL;
 
 shell_state_t *shell_state_get() {
-    if (ss == NULL) {
+    if (sh_state== NULL) {
         fprintf(stderr, "Fatal Error: Shell instance was not initialized before use.\n");    
         exit(EXIT_FAILURE);
     }
-    return ss;
+    return sh_state;
 }
 
 /**
@@ -34,11 +34,11 @@ static void init_environment() {
     // --- HOME and PATH ---
     char *home_val = getenv("HOME");
     if (home_val) {
-        hashmap_set(ss->environment, xstrdup("HOME"), xstrdup(home_val));
+        shput(sh_state->environment, xstrdup("HOME"), xstrdup(home_val));
     }
     char *path_val = getenv("PATH");
     if (path_val) {
-        hashmap_set(ss->environment, xstrdup("PATH"), xstrdup(path_val));
+        shput(sh_state->environment, xstrdup("PATH"), xstrdup(path_val));
     }
 
     // --- SHELL ---
@@ -47,7 +47,7 @@ static void init_environment() {
 
     if (exe_len != -1) {
         exe_buf[exe_len] = '\0'; 
-        hashmap_set(ss->environment, xstrdup("SHELL"), xstrdup(exe_buf));
+        shput(sh_state->environment, xstrdup("SHELL"), xstrdup(exe_buf));
     }
 
     // --- HISTFILE ---
@@ -56,34 +56,34 @@ static void init_environment() {
         hist_file_buf, 
         PATH_MAX, 
         "%s/%s", 
-        ss->cwd,
+        sh_state->cwd,
         HIST_FILENAME
     );
     
     if (hist_file_len > 0 && hist_file_len < PATH_MAX) {
-        hashmap_set(ss->environment, xstrdup("HISTFILE"), xstrdup(hist_file_buf)); // FIX C
+        shput(sh_state->environment, xstrdup("HISTFILE"), xstrdup(hist_file_buf));
     }
 }
 
 char *shell_state_getenv(const char *key) {
-    return hashmap_get(ss->environment, key);
+    return shget(sh_state->environment, key);
 }
 
 void shell_state_init() {
-    ss = xmalloc(sizeof(shell_state_t));
-    ss->environment = hashmap_new(256);
+    sh_state= xmalloc(sizeof(shell_state_t));
+    sh_state->environment = NULL;
     
     char cwd_buf[PATH_MAX];
     getcwd(cwd_buf, sizeof(cwd_buf));
-    ss->cwd = xstrdup(cwd_buf);
-    ss->last_fg_cmd = NULL;
-    ss->last_exit_status = 0;
-    ss->should_exit = false;
+    sh_state->cwd = xstrdup(cwd_buf);
+    sh_state->last_fg_cmd = NULL;
+    sh_state->last_exit_status = 0;
+    sh_state->should_exit = false;
     
-    ss->hist = xmalloc(sizeof(history_t));    
-    ss->jobs_count = 0;
-    ss->jobs = xmalloc(sizeof(job_t) * MAX_JOBS);
-    ss->running_jobs_count = 0;
+    sh_state->hist = xmalloc(sizeof(history_t));    
+    sh_state->jobs_count = 0;
+    sh_state->jobs = xmalloc(sizeof(job_t) * MAX_JOBS);
+    sh_state->running_jobs_count = 0;
 
     init_environment();
     history_init();
@@ -91,11 +91,17 @@ void shell_state_init() {
 }
 
 void shell_state_free() {
-    hashmap_free(ss->environment);
+    // Free environment hashmap
+    for (int i = 0; i < shlen(sh_state->environment); i++) {
+        env_var_t env_var = sh_state->environment[i];
+        free(env_var.key);
+        free(env_var.value);
+    }
+    shfree(sh_state->environment);
 
-    free(ss->cwd);
+    free(sh_state->cwd);
     history_free();
-    free(ss->jobs);
-
-    free(ss);
+    jobs_free();
+    
+    free(sh_state);
 }

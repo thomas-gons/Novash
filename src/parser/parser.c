@@ -33,13 +33,12 @@ static char **parse_arguments(tokenizer_t *tz) {
 
     while (g_tok.type == TOK_WORD) {
         // the global token value is continually overwritten thus we need to xstrdup
-        arr_push(argv, xstrdup(g_tok.value));
+        arrpush(argv, xstrdup(g_tok.value));
         next_token(tz);
     }
     
     // ensure argv is NULL-terminated for execvp calls later
     // resize if necessary
-    arr_push_nocount(argv, NULL);
     return argv;
 }
 
@@ -96,7 +95,7 @@ static redirection_t *parse_redirection(tokenizer_t *tz) {
 
         // same reason as argv, need to xstrdup
         r.target = xstrdup(g_tok.value);
-        arr_push(redir, r);
+        arrpush(redir, r);
         next_token(tz);
     }
     return redir;
@@ -155,7 +154,7 @@ static ast_node_t *parse_pipeline(tokenizer_t *tz) {
     ast_node_t *node = xmalloc(sizeof(ast_node_t));
     node->type = NODE_PIPELINE;
     node->pipe.nodes = NULL;
-    arr_push(node->pipe.nodes, first_command);
+    arrpush(node->pipe.nodes, first_command);
 
     // Loop to handle multiple piped commands (e.g., cmd1 | cmd2 | cmd3)
     while (g_tok.type == TOK_PIPE) {
@@ -166,13 +165,13 @@ static ast_node_t *parse_pipeline(tokenizer_t *tz) {
             parser_free_ast(node);
             exit(EXIT_FAILURE);
         }
-        arr_push(node->pipe.nodes, next_command);
+        arrpush(node->pipe.nodes, next_command);
     }
 
-    if (arr_len(node->pipe.nodes) == 1) {
+    if (arrlen(node->pipe.nodes) == 1) {
         // single command, no pipeline needed
         ast_node_t *single_cmd = node->pipe.nodes[0];
-        arr_free(node->pipe.nodes);
+        arrfree(node->pipe.nodes);
         free(node);
         return single_cmd;
     }
@@ -223,7 +222,7 @@ ast_node_t *parser_create_ast(tokenizer_t *tz) {
             break;
         }
 
-        arr_push(root_node->seq.nodes, next_command);
+        arrpush(root_node->seq.nodes, next_command);
 
         // consume any number of consecutive separators (; or &), e.g. "&;" or ";;" or "&;&"
         while (g_tok.type == TOK_SEMI || g_tok.type == TOK_BG) {
@@ -244,14 +243,14 @@ void parser_free_ast(ast_node_t *node) {
         case NODE_CMD: {
             // free all args, redirections, and raw_str
             cmd_node_t cmd = node->cmd;
-            for (size_t i = 0; i < arr_len(cmd.argv); i++) {
+            for (int i = 0; i < arrlen(cmd.argv); i++) {
                 free(cmd.argv[i]);
             }
-            arr_free(cmd.argv);
-            for (size_t i = 0; i < arr_len(cmd.redir); i++) {
+            arrfree(cmd.argv);
+            for (int i = 0; i < arrlen(cmd.redir); i++) {
                 free(cmd.redir[i].target);
             }
-            arr_free(cmd.redir);
+            arrfree(cmd.redir);
             free(cmd.raw_str);
             break;
         }
@@ -262,10 +261,10 @@ void parser_free_ast(ast_node_t *node) {
             break;
         case NODE_SEQUENCE:
             // free sequence nodes array
-            for (size_t i = 0; i < arr_len(node->seq.nodes); i++) {
+            for (int i = 0; i < arrlen(node->seq.nodes); i++) {
                 parser_free_ast(node->seq.nodes[i]);
             }
-            arr_free(node->seq.nodes);
+            arrfree(node->seq.nodes);
             break; 
         default:
             return;
@@ -283,13 +282,13 @@ void print_ast(ast_node_t *node, int indent) {
             printf("CMD: %s", node->cmd.argv[0]);
             
             // print all arguments
-            for (size_t i = 1; i < arr_len(node->cmd.argv); i++)
+            for (int i = 1; i < arrlen(node->cmd.argv); i++)
                 printf(" %s", node->cmd.argv[i]);
 
             // print redirections if any
-            if (arr_len(node->cmd.redir) > 0) {
+            if (arrlen(node->cmd.redir) > 0) {
                 printf(" [");
-                for (size_t i = 0; i < arr_len(node->cmd.redir); i++) {
+                for (int i = 0; i < arrlen(node->cmd.redir); i++) {
                     redirection_t r = node->cmd.redir[i];
                     printf("%d", r.fd);
                     switch (r.type) {
@@ -298,7 +297,7 @@ void print_ast(ast_node_t *node, int indent) {
                         case REDIR_APPEND: printf(">>"); break;
                     }
                     printf("%s", r.target);
-                    if (i < arr_len(node->cmd.redir) - 1) printf(", ");
+                    if (i < arrlen(node->cmd.redir) - 1) printf(", ");
                 }
                 printf("]");
             }
@@ -311,7 +310,7 @@ void print_ast(ast_node_t *node, int indent) {
         // for other node types, print their type and recursively
         // print children until cmd nodes are reached
         case NODE_PIPELINE:
-            for (size_t i = 0; i < arr_len(node->pipe.nodes); i++) {
+            for (int i = 0; i < arrlen(node->pipe.nodes); i++) {
                 print_ast(node->pipe.nodes[i], indent + 1);
             }
             break;
@@ -324,7 +323,7 @@ void print_ast(ast_node_t *node, int indent) {
         
         case NODE_SEQUENCE:
             printf("SEQUENCE\n");
-            for (size_t i = 0; i < arr_len(node->seq.nodes); i++) {
+            for (int i = 0; i < arrlen(node->seq.nodes); i++) {
                 print_ast(node->seq.nodes[i], indent + 1);
             }
             break;
