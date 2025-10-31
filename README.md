@@ -190,14 +190,13 @@ cd Novash
 chmod u+x run.sh
 ./run.sh
 ```
-Optional flags:
-```
-  -d, --debug       Build in Debug mode
-  -b, --build-only  Only build, do not run shell or tests
-  -t, --test        Build and run tests
-  -c, --clean       Remove the build directories and exit
-  -h, --help        Display this help message
-```
+
+**Optional flags:**
+- `-d, --debug` - Build in Debug mode
+- `-b, --build-only` - Only build, do not run shell or tests
+- `-t, --test` - Build and run tests
+- `-c, --clean` - Remove the build directories and exit
+- `-h, --help` - Display this help message
 
 ### Or build manually with CMake
 
