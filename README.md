@@ -24,12 +24,19 @@ Novash is built with a modular architecture consisting of:
 
 ### Lexer & Tokenization
 
-- [x] Tokenization with 11 token types including:
-  - Words and commands
-  - Quotes (single `'` and double `"`) with proper nesting
-  - Metacharacters (`|`, `&`, `;`, `<`, `>`, `>>`, `&&`, `||`)
-  - File descriptor tokens for redirections
-  - End-of-file marker
+- [x] Tokenization with 11 token types:
+  - `TOK_WORD` - Commands, arguments, and filenames
+  - `TOK_PIPE` (`|`) - Pipeline separator
+  - `TOK_AND` (`&&`) - Conditional AND operator
+  - `TOK_OR` (`||`) - Conditional OR operator
+  - `TOK_SEMI` (`;`) - Sequential execution separator
+  - `TOK_BG` (`&`) - Background execution marker
+  - `TOK_REDIR_IN` (`<`) - Input redirection
+  - `TOK_REDIR_OUT` (`>`) - Output redirection
+  - `TOK_REDIR_APPEND` (`>>`) - Append redirection
+  - `TOK_FD` - File descriptor number
+  - `TOK_EOF` - End of input
+- [x] Quote handling with proper nesting (single `'` and double `"`)
 - [x] Quote removal in token values while tracking raw input length
 - [x] Whitespace and metacharacter boundary detection
 
