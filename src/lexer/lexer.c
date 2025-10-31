@@ -8,35 +8,37 @@
 
 #include "lexer.h"
 
-
 lexer_t *lexer_new() {
-    lexer_t *lex = xmalloc(sizeof(lexer_t));
-    lex->input = NULL;
-    lex->pos = 0;
-    lex->length = 0;
-    return lex;
+  lexer_t *lex = xmalloc(sizeof(lexer_t));
+  lex->input = NULL;
+  lex->pos = 0;
+  lex->length = 0;
+  return lex;
 }
 
 void lexer_init(lexer_t *lex, char *input) {
-    if (lex->input) free(lex->input);
-    
-    lex->input = xstrdup(input);
-    lex->pos = 0;
-    lex->length = strlen(input);
+  if (lex->input)
+    free(lex->input);
+
+  lex->input = xstrdup(input);
+  lex->pos = 0;
+  lex->length = strlen(input);
 }
 
 void lexer_free(lexer_t *lex) {
-    if (!lex) return;
+  if (!lex)
+    return;
 
-    if (lex->input) free(lex->input);
-    free(lex);
+  if (lex->input)
+    free(lex->input);
+  free(lex);
 }
 
 void lexer_free_token(token_t *tok) {
-    if (tok && tok->value) {
-        free(tok->value);
-        tok->value = NULL;
-    }
+  if (tok && tok->value) {
+    free(tok->value);
+    tok->value = NULL;
+  }
 }
 
 /**
@@ -45,8 +47,9 @@ void lexer_free_token(token_t *tok) {
  * @return current character or '\0' if at the end of input
  */
 static char peek(lexer_t *lex) {
-    if (lex->pos >= lex->length) return '\0';
-    return lex->input[lex->pos];
+  if (lex->pos >= lex->length)
+    return '\0';
+  return lex->input[lex->pos];
 }
 
 /**
@@ -55,8 +58,9 @@ static char peek(lexer_t *lex) {
  * @return current character or '\0' if at the end of input
  */
 static char advance(lexer_t *lex) {
-    if (lex->pos >= lex->length) return '\0';
-    return lex->input[lex->pos++];
+  if (lex->pos >= lex->length)
+    return '\0';
+  return lex->input[lex->pos++];
 }
 
 /**
@@ -64,10 +68,10 @@ static char advance(lexer_t *lex) {
  * @param lex pointer to the lexer
  */
 static void skip_whitespaces(lexer_t *lex) {
-    char c;
-    while ((c = peek(lex)) == ' ' || c == '\t') {
-        advance(lex);
-    }
+  char c;
+  while ((c = peek(lex)) == ' ' || c == '\t') {
+    advance(lex);
+  }
 }
 
 /**
@@ -76,13 +80,13 @@ static void skip_whitespaces(lexer_t *lex) {
  * @return true if the character is a metacharacter, false otherwise
  */
 static bool is_metachar(char c) {
-    return (c == '|' || c == '&' || c == ';' || c == '<' || c == '>');
+  return (c == '|' || c == '&' || c == ';' || c == '<' || c == '>');
 }
 /**
- * @brief Extracts a word token, handling nested single ('') and double ("") quotes.
- * Quotes are consumed from the input stream and *removed* from the resulting 'buf', 
- * but are included in the 'raw_length' count. Extraction stops upon 
- * unquoted whitespace or an unquoted metacharacter.
+ * @brief Extracts a word token, handling nested single ('') and double ("")
+ * quotes. Quotes are consumed from the input stream and *removed* from the
+ * resulting 'buf', but are included in the 'raw_length' count. Extraction stops
+ * upon unquoted whitespace or an unquoted metacharacter.
  *
  * @param lex Pointer to the lexer state.
  * @param buf Buffer to store the processed (unquoted) word value.
@@ -90,117 +94,177 @@ static bool is_metachar(char c) {
  * @return The total **raw length** (including quotes) of the word consumed.
  */
 static size_t handle_word_token(lexer_t *lex, char *buf, size_t buf_cap) {
-    size_t length = 0;
-    size_t raw_length = 0;
+  size_t length = 0;
+  size_t raw_length = 0;
 
-    // flags for single and double quotes
-    bool in_sq = false, in_dq = false;
+  // flags for single and double quotes
+  bool in_sq = false, in_dq = false;
 
-    char c;
-    // loop until reaching end of input, whitespace, or metacharacter
-    while ((c = peek(lex)) != '\0') {
-        if (c == '\'' && !in_dq) { in_sq = !in_sq; advance(lex); raw_length++; continue; }
-        if (c == '\"' && !in_sq) { in_dq = !in_dq; advance(lex); raw_length++; continue; }
-        if (!in_sq && !in_dq && ((c == ' ' || c == '\t') || is_metachar(c))) break;
-        
-        // resize buffer if needed (double its size)
-        if (length == buf_cap) { buf_cap *= 2; buf = (char*) xrealloc(buf, buf_cap);}
-        buf[length++] = advance(lex);
-        raw_length++;
+  char c;
+  // loop until reaching end of input, whitespace, or metacharacter
+  while ((c = peek(lex)) != '\0') {
+    if (c == '\'' && !in_dq) {
+      in_sq = !in_sq;
+      advance(lex);
+      raw_length++;
+      continue;
     }
+    if (c == '\"' && !in_sq) {
+      in_dq = !in_dq;
+      advance(lex);
+      raw_length++;
+      continue;
+    }
+    if (!in_sq && !in_dq && ((c == ' ' || c == '\t') || is_metachar(c)))
+      break;
 
-    // if buffer is full, expand it by one for null terminator
-    if (length == buf_cap) { buf_cap++; buf = (char*) xrealloc(buf, buf_cap);}
-    buf[length] = '\0';
+    // resize buffer if needed (double its size)
+    if (length == buf_cap) {
+      buf_cap *= 2;
+      buf = (char *)xrealloc(buf, buf_cap);
+    }
+    buf[length++] = advance(lex);
+    raw_length++;
+  }
 
-    return raw_length;
+  // if buffer is full, expand it by one for null terminator
+  if (length == buf_cap) {
+    buf_cap++;
+    buf = (char *)xrealloc(buf, buf_cap);
+  }
+  buf[length] = '\0';
+
+  return raw_length;
 }
 
 token_t lexer_next_token(lexer_t *lex) {
 
-    skip_whitespaces(lex);
-    char c = peek(lex);
-    switch (c) {
-        case '|': {
-            advance(lex);
-            if (peek(lex) == '|') { advance(lex); return (token_t){TOK_OR, NULL, 2}; }
-            else return (token_t){TOK_PIPE, NULL, 1};
-        }
-        case '&': {
-            advance(lex);
-            if (peek(lex) == '&') { advance(lex); return (token_t){TOK_AND, NULL, 2}; }
-            else return (token_t){TOK_BG, NULL, 1};
-        }
-        case '>': {
-            advance(lex);
-            if (peek(lex) == '>') { advance(lex); return (token_t){TOK_REDIR_APPEND, NULL, 2}; }
-            else return (token_t){TOK_REDIR_OUT, NULL, 1};
-        }
-        case '<': { advance(lex); return (token_t){TOK_REDIR_IN, NULL, 1}; }
-        case ';': { advance(lex); return (token_t) {TOK_SEMI, NULL, 1}; }
-        case '\0': { advance(lex); return (token_t) {TOK_EOF, NULL, 0}; }
-        default: {
-            
-            size_t buf_cap = 64;
-            char *buf = xmalloc(buf_cap);
-            size_t raw_length = handle_word_token(lex, buf, buf_cap);
+  skip_whitespaces(lex);
+  char c = peek(lex);
+  switch (c) {
+  case '|': {
+    advance(lex);
+    if (peek(lex) == '|') {
+      advance(lex);
+      return (token_t){TOK_OR, NULL, 2};
+    } else
+      return (token_t){TOK_PIPE, NULL, 1};
+  }
+  case '&': {
+    advance(lex);
+    if (peek(lex) == '&') {
+      advance(lex);
+      return (token_t){TOK_AND, NULL, 2};
+    } else
+      return (token_t){TOK_BG, NULL, 1};
+  }
+  case '>': {
+    advance(lex);
+    if (peek(lex) == '>') {
+      advance(lex);
+      return (token_t){TOK_REDIR_APPEND, NULL, 2};
+    } else
+      return (token_t){TOK_REDIR_OUT, NULL, 1};
+  }
+  case '<': {
+    advance(lex);
+    return (token_t){TOK_REDIR_IN, NULL, 1};
+  }
+  case ';': {
+    advance(lex);
+    return (token_t){TOK_SEMI, NULL, 1};
+  }
+  case '\0': {
+    advance(lex);
+    return (token_t){TOK_EOF, NULL, 0};
+  }
+  default: {
 
-            // Check for File Descriptor (FD) token:
-            // An FD is recognized only if the token is a bare, unquoted number
-            // immediately preceding a redirection metacharacter (< or >).
-            char *end;
-            strtol(buf, &end, 10);
-            if (*end == '\0' && strlen(buf) == raw_length) {
-                c = peek(lex);
-                if (c == '>' || c == '<') return (token_t) {TOK_FD, buf, raw_length};
-            }
-            
-            return (token_t) {TOK_WORD, buf, raw_length}; 
-        }
+    size_t buf_cap = 64;
+    char *buf = xmalloc(buf_cap);
+    size_t raw_length = handle_word_token(lex, buf, buf_cap);
+
+    // Check for File Descriptor (FD) token:
+    // An FD is recognized only if the token is a bare, unquoted number
+    // immediately preceding a redirection metacharacter (< or >).
+    char *end;
+    strtol(buf, &end, 10);
+    if (*end == '\0' && strlen(buf) == raw_length) {
+      c = peek(lex);
+      if (c == '>' || c == '<')
+        return (token_t){TOK_FD, buf, raw_length};
     }
+
+    return (token_t){TOK_WORD, buf, raw_length};
+  }
+  }
 }
 
 size_t lexer_token_str(token_t tok, char *buf, size_t buf_sz) {
-    char *fixed = NULL;
-    char *fmt = NULL;
-    int needed;
+  char *fixed = NULL;
+  char *fmt = NULL;
+  int needed;
 
-    switch (tok.type) {
-    case TOK_AND:          fixed = "[TOK_AND]: &&\n"; break;
-    case TOK_BG:           fixed = "[TOK_BG]: &\n"; break;
-    case TOK_EOF:          fixed = "[TOK_EOF]\n"; break;
-    case TOK_OR:           fixed = "[TOK_OR]: ||\n"; break;
-    case TOK_PIPE:         fixed = "[TOK_PIPE]: |\n"; break;
-    case TOK_REDIR_APPEND: fixed = "[TOK_REDIR_APPEND]: >>\n"; break;
-    case TOK_REDIR_IN:     fixed = "[TOK_REDIR_IN]: <\n"; break;
-    case TOK_REDIR_OUT:    fixed = "[TOK_REDIR_OUT]: >\n"; break;
-    case TOK_SEMI:         fixed = "[TOK_SEMI]: ;\n"; break;
-    case TOK_FD:
-        if (!tok.value)    fixed = "[TOK_FD]: (null)\n";
-        else               fmt = "[TOK_FD]: %s\n";
-        break;        
-    case TOK_WORD:
-        if (!tok.value)    fixed = "[TOK_WORD]: (null)\n";
-        else               fmt = "[TOK_WORD]: %s\n";
-        break;
-    default:               fixed = "[UNKNOWN]: (unknown token)\n"; break;
-    }
+  switch (tok.type) {
+  case TOK_AND:
+    fixed = "[TOK_AND]: &&\n";
+    break;
+  case TOK_BG:
+    fixed = "[TOK_BG]: &\n";
+    break;
+  case TOK_EOF:
+    fixed = "[TOK_EOF]\n";
+    break;
+  case TOK_OR:
+    fixed = "[TOK_OR]: ||\n";
+    break;
+  case TOK_PIPE:
+    fixed = "[TOK_PIPE]: |\n";
+    break;
+  case TOK_REDIR_APPEND:
+    fixed = "[TOK_REDIR_APPEND]: >>\n";
+    break;
+  case TOK_REDIR_IN:
+    fixed = "[TOK_REDIR_IN]: <\n";
+    break;
+  case TOK_REDIR_OUT:
+    fixed = "[TOK_REDIR_OUT]: >\n";
+    break;
+  case TOK_SEMI:
+    fixed = "[TOK_SEMI]: ;\n";
+    break;
+  case TOK_FD:
+    if (!tok.value)
+      fixed = "[TOK_FD]: (null)\n";
+    else
+      fmt = "[TOK_FD]: %s\n";
+    break;
+  case TOK_WORD:
+    if (!tok.value)
+      fixed = "[TOK_WORD]: (null)\n";
+    else
+      fmt = "[TOK_WORD]: %s\n";
+    break;
+  default:
+    fixed = "[UNKNOWN]: (unknown token)\n";
+    break;
+  }
 
-    if (fixed) {
-        size_t len = strlen(fixed);
-        if (buf && buf_sz > 0) {
-            // directly copy fixed string into buffer with size limit
-            size_t to_copy = (len >= buf_sz) ? (buf_sz - 1) : len;
-            memcpy(buf, fixed, to_copy);
-            buf[to_copy] = '\0';
-        }
-        return len;
-    }
-
-    needed = xsnprintf(NULL, 0, fmt, tok.value);
+  if (fixed) {
+    size_t len = strlen(fixed);
     if (buf && buf_sz > 0) {
-        // write formatted string into buffer with size limit
-        xsnprintf(buf, buf_sz, fmt, tok.value);
+      // directly copy fixed string into buffer with size limit
+      size_t to_copy = (len >= buf_sz) ? (buf_sz - 1) : len;
+      memcpy(buf, fixed, to_copy);
+      buf[to_copy] = '\0';
     }
-    return (size_t) needed;
+    return len;
+  }
+
+  needed = xsnprintf(NULL, 0, fmt, tok.value);
+  if (buf && buf_sz > 0) {
+    // write formatted string into buffer with size limit
+    xsnprintf(buf, buf_sz, fmt, tok.value);
+  }
+  return (size_t)needed;
 }

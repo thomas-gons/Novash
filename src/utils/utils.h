@@ -11,18 +11,18 @@
 
 #define _GNU_SOURCE
 
-#include <stdio.h>
-#include <sys/stat.h>
 #include "shell/state.h"
 #include "utils/system/memory.h"
-
+#include <stdio.h>
+#include <sys/stat.h>
 
 /**
- * @brief Searches for an executable command in the directories listed in the PATH
- * environment variable.
+ * @brief Searches for an executable command in the directories listed in the
+ * PATH environment variable.
  * @param cmd The command name (e.g., "ls").
- * @return The heap-allocated absolute path of the command if found and executable, 
- * or NULL otherwise. The caller is responsible for freeing the returned string.
+ * @return The heap-allocated absolute path of the command if found and
+ * executable, or NULL otherwise. The caller is responsible for freeing the
+ * returned string.
  */
 char *is_in_path(char *cmd);
 

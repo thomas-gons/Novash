@@ -5,17 +5,16 @@
 #define _GNU_SOURCE
 #endif
 
-#include <unistd.h>
-#include <signal.h>
 #include <fcntl.h>
-#include <sys/wait.h>
-#include <sys/signalfd.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>  // for perror
 #include <stdlib.h> // for exit
+#include <sys/signalfd.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #define EXIT_CHILD_FAILURE 127
-
 
 void xpipe(int pipefd[2]);
 void xdup2(int oldfd, int newfd, bool from_child);

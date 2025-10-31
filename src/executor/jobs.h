@@ -12,54 +12,49 @@
 
 #define _GNU_SOURCE
 
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-#include <sys/wait.h>
-#include <readline/readline.h>
-#include <sys/types.h>
-#include "utils/collections.h"
 #include "parser/parser.h"
 #include "shell/state.h"
+#include "utils/collections.h"
+#include <errno.h>
+#include <readline/readline.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 // Process states
 typedef enum {
-    PROCESS_RUNNING,
-    PROCESS_DONE,
-    PROCESS_STOPPED,
-    PROCESS_KILLED
+  PROCESS_RUNNING,
+  PROCESS_DONE,
+  PROCESS_STOPPED,
+  PROCESS_KILLED
 } process_state_e;
 
 // Job states
-typedef enum {
-    JOB_RUNNING,
-    JOB_DONE,
-    JOB_STOPPED,
-    JOB_KILLED
-} job_state_e;
+typedef enum { JOB_RUNNING, JOB_DONE, JOB_STOPPED, JOB_KILLED } job_state_e;
 
 // Single process in a job
 typedef struct process_t {
-    pid_t pid;                 // Process ID
-    char **argv;               // Command arguments
-    redirection_t *redir;      // I/O redirections
-    process_state_e state;     // Process state
-    int status;                // Exit status or signal
-    struct process_t *next;    // Next process in pipeline
-    struct job_t *parent_job;  // Parent job
+  pid_t pid;                // Process ID
+  char **argv;              // Command arguments
+  redirection_t *redir;     // I/O redirections
+  process_state_e state;    // Process state
+  int status;               // Exit status or signal
+  struct process_t *next;   // Next process in pipeline
+  struct job_t *parent_job; // Parent job
 } process_t;
 
 // Job: pipeline of processes
 typedef struct job_t {
-    unsigned id;               // Unique job ID
-    pid_t pgid;                // Process group ID
-    process_t *first_process;  // First process in pipeline
-    char *command;             // Original command line
-    bool is_background;        // True if background job
-    job_state_e state;         // Job state
-    unsigned live_processes;   // Count of running processes
-    struct job_t *prev;        // Previous job in job list
-    struct job_t *next;        // Next job in job list
+  unsigned id;              // Unique job ID
+  pid_t pgid;               // Process group ID
+  process_t *first_process; // First process in pipeline
+  char *command;            // Original command line
+  bool is_background;       // True if background job
+  job_state_e state;        // Job state
+  unsigned live_processes;  // Count of running processes
+  struct job_t *prev;       // Previous job in job list
+  struct job_t *next;       // Next job in job list
 } job_t;
 
 // Process APIs

@@ -14,6 +14,4 @@
 #define JOB_STOPPED_EXIT_CODE 146
 #define HIST_FILENAME ".nsh_history"
 
-
-
 #endif // __CONFIG_H__

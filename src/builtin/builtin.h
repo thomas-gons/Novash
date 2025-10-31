@@ -2,7 +2,7 @@
  * Novash — minimalist shell
  * Copyright (C) 2025 Thomas Gons
  * Licensed under the GPLv3 or later.
- * 
+ *
  * builtin.h — Definitions and declarations for internal shell commands.
  * Provides function mappings and interfaces for builtins such as
  * `cd`, `echo`, `exit`, and job control commands (`fg`, `bg`, `jobs`, etc.).
@@ -10,21 +10,19 @@
 #ifndef NOVASH_BUILTIN_H
 #define NOVASH_BUILTIN_H
 
-#include <stdbool.h>
-#include "utils/collections.h"
 #include "shell/state.h"
+#include "utils/collections.h"
 #include "utils/utils.h"
-
+#include <stdbool.h>
 
 /* Builtin function type */
 typedef int (*builtin_t)(int argc, char *argv[]);
 
 /* Hash table entry for builtins */
 typedef struct {
-    char *key;
-    builtin_t value;
+  char *key;
+  builtin_t value;
 } builtin_entry_t;
-
 
 void builtin_init();
 

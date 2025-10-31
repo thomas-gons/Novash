@@ -9,46 +9,46 @@
 #ifndef __STATE_H__
 #define __STATE_H__
 
-#include <stddef.h>
+#include "config.h"
+#include "utils/collections.h"
+#include <fcntl.h>
+#include <signal.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <termios.h>
 #include <time.h>
 #include <unistd.h>
-#include <signal.h>
-#include <fcntl.h>
-#include <termios.h>
-#include "utils/collections.h"
-#include "config.h"
-
 
 // Forward declarations to avoid circular dependencies
 typedef struct job_t job_t;
 typedef struct history_t history_t;
 
 typedef struct {
-    char *key;
-    char *value;
+  char *key;
+  char *value;
 } env_var_t;
 
 /**
  * @brief Main structure holding the global state of the Novash shell.
- * This singleton structure is accessed throughout the program via shell_state_get().
+ * This singleton structure is accessed throughout the program via
+ * shell_state_get().
  */
-typedef struct shell_state_t{
-    env_var_t *environment;
+typedef struct shell_state_t {
+  env_var_t *environment;
 
-    char *cwd;
-    char *last_fg_cmd;
-    int last_exit_status;
-    bool should_exit;
+  char *cwd;
+  char *last_fg_cmd;
+  int last_exit_status;
+  bool should_exit;
 
-    history_t *hist;
-    job_t *jobs;
-    job_t *jobs_tail;
-    size_t jobs_count;
-    size_t running_jobs_count;
+  history_t *hist;
+  job_t *jobs;
+  job_t *jobs_tail;
+  size_t jobs_count;
+  size_t running_jobs_count;
 
-    pid_t pgid;
-    struct termios shell_tmodes;
+  pid_t pgid;
+  struct termios shell_tmodes;
 } shell_state_t;
 
 /**
@@ -65,7 +65,8 @@ void shell_state_init();
 shell_state_t *shell_state_get();
 
 /**
- * @brief Retrieves the value of an environment variable from the internal hashmap.
+ * @brief Retrieves the value of an environment variable from the internal
+ * hashmap.
  * @param key The environment variable name (e.g., "PATH").
  * @return char* The value string if found, or NULL if not found.
  */
