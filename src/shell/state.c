@@ -90,14 +90,9 @@ void shell_state_init() {
 
 void shell_regain_control() {
   // Regain control of the terminal
-  if (tcsetpgrp(STDIN_FILENO, sh_state->pgid) == -1) {
-    perror("tcsetpgrp(shell)");
-  }
+  xtcsetpgrp(STDIN_FILENO, getpgrp());
 
-  // Restore shell terminal modes
-  if (tcsetattr(STDIN_FILENO, TCSADRAIN, &sh_state->shell_tmodes) == -1) {
-    perror("tcsetattr(shell)");
-  }
+  xtcsetattr(STDIN_FILENO, TCSADRAIN, &sh_state->shell_tmodes);
 }
 
 void shell_state_free() {

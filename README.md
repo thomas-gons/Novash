@@ -19,23 +19,101 @@ The goal is to implement, from scratch the essential components of a modern UNIX
   cmd1 && cmd2 || cmd3   # conditional execution
   cmd1 &; cmd2; cmd3     # sequential execution background tasks
   ```
+- [x] Redirection parsing with file descriptor support (`0`, `1`, `2`)
+- [x] Background task detection (`&`)
+- [x] Raw command string preservation for display
 
-### Execution
-- [X] Builtins (`cd`, `echo`, `pwd`, `exit`, `type`, `history`)
-- [X] Redirections and pipelines
-- [X] Conditional and sequential execution (`&&`, `||`, `;`)
-- [X] Background tasks (`&`)
-- [X] Signal handling (`SIGINT`, `SIGCHLD`)
-- [ ] Job management (`fg`, `bg`, `jobs`) - in progress
+### Execution Engine
 
-## Command Line navigation
+- [x] Process management with fork/exec model
+- [x] Process group management for job control
+- [x] Synchronization using pipes for race-free process group setup
+- [x] Signal masking during critical sections
+- [x] Pipeline execution with proper pipe setup
+- [x] Conditional execution (`&&` returns on failure, `||` returns on success)
+- [x] Sequential execution with `;` separator
+- [x] Background task execution (`&`)
+- [x] I/O redirections:
+  - Input redirection (`<`)
+  - Output redirection (`>`)
+  - Append redirection (`>>`)
+  - File descriptor redirection (e.g., `2>`)
 
-- [ ] Integrate GNU Readline or linenoise for input handling, history search and completion
+### Builtin Commands
 
-### History
+- [x] **`cd`** - Change directory (supports `~` for home)
+- [x] **`echo`** - Print arguments to stdout
+- [x] **`pwd`** - Print current working directory
+- [x] **`exit`** - Exit the shell (with running job warning)
+- [x] **`type`** - Display command type (builtin or external with path)
+- [x] **`history`** - Display command history
+- [x] **`jobs`** - List background jobs with status
+- [x] **`fg`** - Bring background job to foreground (apply to last valid job only => TODO)
+- [x] **`bg`** - Resume stopped job in background (apply to last stopped job only => TODO)
 
-- [X] Persistent across sessions
-- [X] Stored in a file and loaded at startup
+### Job Control
+
+- [x] Job data structures with process pipeline support
+- [x] Job states: `RUNNING`, `DONE`, `STOPPED`, `KILLED`
+- [x] Process states: `RUNNING`, `DONE`, `STOPPED`, `KILLED`
+- [x] Job list management (add, remove, find by PGID)
+- [x] Process tracking within jobs
+- [x] Background job completion notification
+- [x] Job listing (`jobs` command)
+- [x] Job status display with command line
+- [x] Foreground/background job control (`fg`, `bg` commands - partially implemented)
+
+### Signal Handling
+
+- [x] **SIGINT** - Graceful handling of Ctrl+C
+  - Cleans up readline interface
+  - Redisplays prompt without terminating shell
+- [x] **SIGCHLD** - Asynchronous child process reaping
+  - Non-blocking waitpid with `WNOHANG`
+  - Handles exited, killed, stopped, and continued processes
+  - Updates job and process states
+  - Notifies completion of background jobs
+- [x] **SIGTTOU/SIGTTIN** - Ignored for background job control
+- [x] Event-driven signal processing via readline hooks
+
+### Terminal Control
+
+- [x] Shell process group management
+- [x] Terminal ownership with `tcsetpgrp`
+- [x] Terminal mode preservation and restoration
+- [x] Foreground process group control
+- [x] TTY detection with fallback for non-interactive mode
+
+### History Management
+
+- [x] Persistent command history across sessions
+- [x] Circular buffer implementation (configurable size: 1000 entries)
+- [x] Stored in `.nsh_history` file
+- [x] Automatic loading at shell startup
+- [x] Immediate save after each command
+- [x] History trimming to enforce size limits
+- [x] Integration with GNU Readline history
+- [x] Timestamp tracking for commands
+
+### Shell State
+
+- [x] Global singleton state management
+- [x] Environment variable hashmap (`HOME`, `PATH`, `SHELL`, `HISTFILE`)
+- [x] Current working directory tracking
+- [x] Last exit status tracking
+- [x] Last foreground command tracking
+- [x] Job list with running job counter
+- [x] Terminal modes and process group ID
+
+### Command Line Interface
+
+- [x] GNU Readline integration for line editing
+- [x] Command history navigation (up/down arrows)
+- [x] Line editing capabilities (emacs/vi modes)
+- [x] Customizable prompt (`$ `)
+- [x] EOF (Ctrl+D) handling with running job warning
+- [x] Interrupt handling (Ctrl+C) without shell exit
+- [ ] Auto-completion
 - [ ] History expansion (`!cmd`)
 
 ### Command Line

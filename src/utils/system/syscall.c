@@ -1,22 +1,6 @@
 #include "syscall.h"
 
-void xpipe(int pipefd[2]) {
-  if (pipe(pipefd) == -1) {
-    perror("pipe failed");
-    exit(EXIT_FAILURE);
-  }
-}
-
-void xdup2(int oldfd, int newfd, bool from_child) {
-  if (dup2(oldfd, newfd) == -1) {
-    if (from_child) {
-      perror("dup2 failed in child");
-      _exit(EXIT_CHILD_FAILURE);
-    }
-    perror("dup2 failed");
-    exit(EXIT_FAILURE);
-  }
-}
+/* PROCESS MANAGEMENT */
 
 pid_t xfork() {
   pid_t pid = fork();
@@ -25,26 +9,6 @@ pid_t xfork() {
     exit(EXIT_FAILURE);
   }
   return pid;
-}
-
-int xopen(const char *pathname, int flags, mode_t mode, bool from_child) {
-  int fd = open(pathname, flags, mode);
-  if (fd == -1) {
-    if (from_child) {
-      perror("open failed in child");
-      _exit(EXIT_CHILD_FAILURE);
-    }
-    perror("open failed");
-    exit(EXIT_FAILURE);
-  }
-  return fd;
-}
-
-void xclose(int fd) {
-  if (close(fd) == -1) {
-    perror("close failed");
-    exit(EXIT_FAILURE);
-  }
 }
 
 void xwaitpid(pid_t pid, int *status, int options) {
@@ -74,6 +38,53 @@ void xsetpgid(pid_t pid, pid_t pgid, bool from_child) {
   }
 }
 
+void xkill(pid_t pid, int sig) {
+  if (kill(pid, sig) == -1) {
+    perror("kill failed");
+    exit(EXIT_FAILURE);
+  }
+}
+
+/* FILE OPERATIONS */
+
+int xopen(const char *pathname, int flags, mode_t mode, bool from_child) {
+  int fd = open(pathname, flags, mode);
+  if (fd == -1) {
+    if (from_child) {
+      perror("open failed in child");
+      _exit(EXIT_CHILD_FAILURE);
+    }
+    perror("open failed");
+    exit(EXIT_FAILURE);
+  }
+  return fd;
+}
+
+void xclose(int fd) {
+  if (close(fd) == -1) {
+    perror("close failed");
+    exit(EXIT_FAILURE);
+  }
+}
+
+void xpipe(int pipefd[2]) {
+  if (pipe(pipefd) == -1) {
+    perror("pipe failed");
+    exit(EXIT_FAILURE);
+  }
+}
+
+void xdup2(int oldfd, int newfd, bool from_child) {
+  if (dup2(oldfd, newfd) == -1) {
+    if (from_child) {
+      perror("dup2 failed in child");
+      _exit(EXIT_CHILD_FAILURE);
+    }
+    perror("dup2 failed");
+    exit(EXIT_FAILURE);
+  }
+}
+
 void xwrite(int fd, const void *buf, size_t count) {
   ssize_t bytes_written = write(fd, buf, count);
   if (bytes_written == -1 || (size_t)bytes_written != count) {
@@ -81,6 +92,8 @@ void xwrite(int fd, const void *buf, size_t count) {
     exit(EXIT_FAILURE);
   }
 }
+
+/* SIGNAL HANDLING */
 
 void xsigprocmask(int how, const sigset_t *set, sigset_t *oldset) {
   if (sigprocmask(how, set, oldset) == -1) {
@@ -96,4 +109,36 @@ int xsignalfd(int fd, const sigset_t *mask, int flags) {
     exit(EXIT_FAILURE);
   }
   return sfd;
+}
+
+/* TERMINAL CONTROL */
+
+pid_t xtcgetpgrp(int fd) {
+  pid_t pgrp = tcgetpgrp(fd);
+  if (pgrp == -1) {
+    perror("tcgetpgrp failed");
+    exit(EXIT_FAILURE);
+  }
+  return pgrp;
+}
+
+void xtcsetpgrp(int fd, pid_t pgrp) {
+  if (tcsetpgrp(fd, pgrp) == -1 && errno != ENOTTY) {
+    perror("tcsetpgrp failed");
+    exit(EXIT_FAILURE);
+  }
+}
+
+void xtcgetattr(int fd, struct termios *termios_p) {
+  if (tcgetattr(fd, termios_p) == -1) {
+    perror("tcgetattr failed");
+    exit(EXIT_FAILURE);
+  }
+}
+
+void xtcsetattr(int fd, int optional_actions, const struct termios *termios_p) {
+  if (tcsetattr(fd, optional_actions, termios_p) == -1) {
+    perror("tcsetattr failed");
+    exit(EXIT_FAILURE);
+  }
 }

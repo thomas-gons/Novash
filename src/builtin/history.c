@@ -2,8 +2,8 @@
 #include "builtin.h"
 
 int builtin_history(int argc, char *argv[]) {
-  shell_state_t *shell_state = shell_state_get();
-  history_t *hist = shell_state->hist;
+  shell_state_t *sh_state = shell_state_get();
+  history_t *hist = sh_state->hist;
   if (argc == 1) {
     for (unsigned i = 0; i < hist->cmd_count; i++) {
       unsigned idx = (hist->start + i) % HIST_SIZE;

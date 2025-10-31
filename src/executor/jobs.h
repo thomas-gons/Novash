@@ -31,7 +31,13 @@ typedef enum {
 } process_state_e;
 
 // Job states
-typedef enum { JOB_RUNNING, JOB_DONE, JOB_STOPPED, JOB_KILLED } job_state_e;
+typedef enum {
+  JOB_RUNNING,
+  JOB_DONE,
+  JOB_STOPPED,
+  JOB_CONTINUED, // temporary state when continued
+  JOB_KILLED
+} job_state_e;
 
 // Single process in a job
 typedef struct process_t {
@@ -70,11 +76,12 @@ job_t *jobs_last_job();
 job_t *jobs_second_last_job();
 job_t *jobs_find_job_by_pgid(pid_t pgid);
 void jobs_free_job(job_t *job, bool deep_free);
-char *jobs_job_str(job_t *job);
+void jobs_print_job_status(job_t *job);
 void jobs_free();
 
 // Job state helpers
 void jobs_mark_job_stopped(job_t *job);
+void jobs_mark_job_continued(job_t *job);
 void jobs_mark_job_completed(job_t *job);
 process_t *jobs_find_process_by_pid(pid_t pid);
 job_t *jobs_find_job_by_pgid(pid_t pgid);

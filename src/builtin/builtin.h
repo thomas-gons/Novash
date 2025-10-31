@@ -12,6 +12,7 @@
 
 #include "shell/state.h"
 #include "utils/collections.h"
+#include "utils/system/syscall.h"
 #include "utils/utils.h"
 #include <stdbool.h>
 

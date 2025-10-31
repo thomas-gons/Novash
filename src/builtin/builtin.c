@@ -40,14 +40,14 @@ int builtin_echo(int argc, char *argv[]) {
 }
 
 int builtin_exit(int argc, char *argv[]) {
-  shell_state_t *shell_state = shell_state_get();
-  shell_state->should_exit = true;
+  shell_state_t *sh_state = shell_state_get();
+  sh_state->should_exit = true;
   return 0;
 }
 
 int builtin_pwd(int argc, char *argv[]) {
-  shell_state_t *shell_state = shell_state_get();
-  printf("%s\n", shell_state->cwd);
+  shell_state_t *sh_state = shell_state_get();
+  printf("%s\n", sh_state->cwd);
   return 0;
 }
 
