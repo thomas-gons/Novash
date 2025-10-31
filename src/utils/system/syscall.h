@@ -7,6 +7,7 @@
 
 #include <unistd.h>
 #include <signal.h>
+#include <fcntl.h>
 #include <sys/wait.h>
 #include <sys/signalfd.h>
 #include <stdbool.h>
@@ -19,6 +20,7 @@
 void xpipe(int pipefd[2]);
 void xdup2(int oldfd, int newfd, bool from_child);
 pid_t xfork();
+int xopen(const char *pathname, int flags, mode_t mode, bool from_child);
 void xclose(int fd);
 void xwaitpid(pid_t pid, int *status, int options);
 pid_t xgetpgid(pid_t pid);

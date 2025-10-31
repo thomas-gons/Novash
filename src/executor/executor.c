@@ -26,38 +26,26 @@ typedef struct executor_ctx_t {
  * @return int 0 on success, -1 on failure (e.g., file not found).
  */
 static int handle_redirection(redirection_t *redir) {
-    int *fd = xmalloc((size_t)arrlen(redir) * sizeof(int));
-    int oflag;
     for (int i = 0; i < arrlen(redir); i++) {
         redirection_t r = redir[i];
-    
-        // Determine the open flags based on the redirection type.
-        oflag = (r.type == REDIR_IN) ?  O_RDONLY:
-                (r.type == REDIR_OUT) ? O_WRONLY | O_CREAT | O_TRUNC:
-                                        O_WRONLY | O_CREAT | O_APPEND;
 
-        // Open the target file. Permissions are 0644 (rw-r--r--).
-        fd[i] = open(r.target, oflag, 0644);
-        if (fd[i] == -1) { free(fd); perror("open failed"); return 1; }
+        int oflag = (r.type == REDIR_IN) ?   O_RDONLY :
+                    (r.type == REDIR_OUT) ? (O_WRONLY | O_CREAT | O_TRUNC) :
+                                            (O_WRONLY | O_CREAT | O_APPEND);
 
-        // Duplicate the newly opened FD onto the target FD (e.g., STDOUT_FILENO).
-        if (dup2(fd[i], r.fd) == -1) { free(fd); perror("fd duplication failed"); return 1;}
+        int fd = xopen(r.target, oflag, 0644, true);
 
-        // Close the original FD, as the target FD now holds the reference.
-        close(fd[i]);
+        if (dup2(fd, r.fd) == -1) {
+            perror("dup2 failed");
+            close(fd);
+            return 1;
+        }
+
+        close(fd);
     }
-
-    free(fd);
     return 0;
 }
 
-
-// Apply stdin/stdout if requested and the process's redirections
-static void setup_child_io(process_t *proc, int in_fd, int out_fd) {
-    if (in_fd != -1) xdup2(in_fd, STDIN_FILENO, true);
-    if (out_fd != -1) xdup2(out_fd, STDOUT_FILENO, true);
-    if (proc->redir) handle_redirection(proc->redir);
-}
 
 // Execute the process (builtin or external)
 static void execute_process(process_t *proc) {
@@ -83,44 +71,44 @@ static inline void executor_context_close_pipes(executor_ctx_t *ctx) {
     if (ctx->sync_pipe[1] != -1) close(ctx->sync_pipe[1]);
 }
 
-
 static pid_t fork_process(process_t *proc, executor_ctx_t *ctx) {
     pid_t pid = xfork();
     if (pid > 0) {
         pr_info("Parent forked child '%s' with pid %d", proc->argv[0], pid);
-        return pid; // PARENT
+        return pid;
     }
 
     /* CHILD */
     pr_info("Child process '%s' started (pid %d)", proc->argv[0], getpid());
 
-    xsigprocmask(SIG_SETMASK, &ctx->prev_mask, NULL); // restore signal mask
+    xsigprocmask(SIG_SETMASK, &ctx->prev_mask, NULL);
     close(ctx->sfd);
 
     if (ctx->pgid == 0) {
         close(ctx->sync_pipe[0]);
         xsetpgid(0, 0, true);
-        pr_info("First child created new pgid %d", getpgid(0));
         (void)write(ctx->sync_pipe[1], "R", 1);
         close(ctx->sync_pipe[1]);
     } else {
         xsetpgid(0, ctx->pgid, true);
-        pr_info("Child joined existing pgid %d", ctx->pgid);
     }
 
-    if (ctx->in_fd != -1) xdup2(ctx->in_fd, STDIN_FILENO, true);
-    if (ctx->out_fd != -1) xdup2(ctx->out_fd, STDOUT_FILENO, true);
-
-    if (proc->redir) {
+    if (proc->redir && arrlen(proc->redir) > 0) {
         pr_info("Setting up redirections for '%s'", proc->argv[0]);
         handle_redirection(proc->redir);
     }
 
-    if (ctx->in_fd != -1) close(ctx->in_fd);
-    if (ctx->out_fd != -1) close(ctx->out_fd);
+    if (ctx->in_fd != -1) {
+        xdup2(ctx->in_fd, STDIN_FILENO, true);
+        close(ctx->in_fd);
+    }
+    if (ctx->out_fd != -1) {
+        xdup2(ctx->out_fd, STDOUT_FILENO, true);
+        close(ctx->out_fd);
+    }
 
     execute_process(proc);
-    return 0; // jamais atteint
+    _exit(EXIT_FAILURE);
 }
 
 static int handle_pure_builtin_execution(process_t *proc) {
@@ -169,15 +157,22 @@ static int handle_foreground_execution(job_t *job, executor_ctx_t ctx) {
             if (s == -1 && errno != EAGAIN && errno != EINTR) {
                 perror("read(sfd)");
             }
+
+            if (job->state == JOB_STOPPED) {
+                shell_regain_control();
+                pr_info("Foreground job (pgid=%d) stopped — returning control to shell", (int)job->pgid);
+                return JOB_STOPPED_EXIT_CODE;
+            }
         }
     }
-
-    tcsetpgrp(STDIN_FILENO, getpid());
+    jobs_remove_job(job->pgid);
+    shell_regain_control();
     return 0;
 }
 
 static int handle_background_execution(job_t *job, pid_t pgid) {
-    printf("[%lu] %d\n", shell_state_get()->jobs_count, pgid);
+    shell_state_t *sh_state = shell_state_get();
+    printf("[%lu] %d\n", sh_state->jobs_count, pgid);
     return 0;
 }
 
@@ -221,6 +216,7 @@ static int run_job(job_t *job) {
     executor_ctx_t ctx = executor_init_context();
 
     while (proc) {
+
         int fd[2] = { -1, -1 };
         ctx.out_fd = -1;
 
@@ -269,8 +265,6 @@ static int run_job(job_t *job) {
     executor_destroy_context(&ctx);
     return status;
 }
-
-
 
 // Create a process from a command AST node and add it to the job
 static void compile_command_job(ast_node_t *cmd_node, job_t *job) {

@@ -10,11 +10,12 @@
 #define __PARSER_H__
 
 #include "lexer/lexer.h"
+#include "utils/log.h"
 #include "utils/collections.h"
 #include "utils/system/memory.h"
 
 
-typedef enum { REDIR_IN, REDIR_OUT, REDIR_APPEND } redirection_e;
+typedef enum { REDIR_IN, REDIR_OUT, REDIR_APPEND, REDIR_NONE } redirection_e;
 
 /**
  * Structure representing a redirection in a command.
@@ -113,7 +114,7 @@ void parser_free_ast(ast_node_t *node);
  * @param indent Current indentation level for pretty-printing.
  * Mostly used for recursive calls but can be set to 0 initially.
  */
-void print_ast(ast_node_t *node, int indent);
+char *parser_ast_str(ast_node_t *node, int indent);
 
 
 #endif // __PARSER_H__

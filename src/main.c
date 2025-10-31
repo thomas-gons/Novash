@@ -7,6 +7,7 @@
  */
 
 #include "shell/shell.h"
+#include "utils/log.h"
 
 
 int main() {

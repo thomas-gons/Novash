@@ -82,12 +82,25 @@ void shell_state_init() {
     
     sh_state->hist = xmalloc(sizeof(history_t));    
     sh_state->jobs_count = 0;
-    sh_state->jobs = xmalloc(sizeof(job_t) * MAX_JOBS);
+    sh_state->jobs = NULL;
+    sh_state->jobs_tail = NULL;
     sh_state->running_jobs_count = 0;
 
     init_environment();
     history_init();
     history_load();
+}
+
+void shell_regain_control() {
+    // Regain control of the terminal
+    if (tcsetpgrp(STDIN_FILENO, sh_state->pgid) == -1) {
+        perror("tcsetpgrp(shell)");
+    }
+
+    // Restore shell terminal modes
+    if (tcsetattr(STDIN_FILENO, TCSADRAIN, &sh_state->shell_tmodes) == -1) {
+        perror("tcsetattr(shell)");
+    }
 }
 
 void shell_state_free() {

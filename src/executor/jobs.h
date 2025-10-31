@@ -13,6 +13,10 @@
 #define _GNU_SOURCE
 
 #include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/wait.h>
+#include <readline/readline.h>
 #include <sys/types.h>
 #include "utils/collections.h"
 #include "parser/parser.h"
@@ -47,12 +51,14 @@ typedef struct process_t {
 
 // Job: pipeline of processes
 typedef struct job_t {
+    unsigned id;               // Unique job ID
     pid_t pgid;                // Process group ID
     process_t *first_process;  // First process in pipeline
     char *command;             // Original command line
     bool is_background;        // True if background job
     job_state_e state;         // Job state
     unsigned live_processes;   // Count of running processes
+    struct job_t *prev;        // Previous job in job list
     struct job_t *next;        // Next job in job list
 } job_t;
 
@@ -65,14 +71,16 @@ void jobs_free_process(process_t *process, bool deep_free);
 job_t *jobs_new_job();
 void jobs_add_job(job_t *job);
 bool jobs_remove_job(pid_t pgid);
-job_t *jobs_get_job(pid_t pgid);
+job_t *jobs_last_job();
+job_t *jobs_second_last_job();
+job_t *jobs_find_job_by_pgid(pid_t pgid);
 void jobs_free_job(job_t *job, bool deep_free);
-char *jobs_job_str(job_t *job, unsigned job_id);
-char *jobs_last_job_str();
+char *jobs_job_str(job_t *job);
 void jobs_free();
 
 // Job state helpers
 void jobs_mark_job_stopped(job_t *job);
+void jobs_mark_job_completed(job_t *job);
 process_t *jobs_find_process_by_pid(pid_t pid);
 job_t *jobs_find_job_by_pgid(pid_t pgid);
 

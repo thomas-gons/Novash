@@ -28,6 +28,19 @@ pid_t xfork() {
     return pid;
 }
 
+int xopen(const char *pathname, int flags, mode_t mode, bool from_child) {
+    int fd = open(pathname, flags, mode);
+    if (fd == -1) {
+        if (from_child) {
+            perror("open failed in child");
+            _exit(EXIT_CHILD_FAILURE);
+        }
+        perror("open failed");
+        exit(EXIT_FAILURE);
+    }
+    return fd;
+}
+
 void xclose(int fd) {
     if (close(fd) == -1) {
         perror("close failed");
