@@ -32,7 +32,7 @@ int shell_init() {
   if (isatty(STDIN_FILENO)) {
     // Put shell in its own process group
     if (setpgid(0, 0) == -1) {
-      if (errno != EACCES && errno != EINVAL) {
+      if (errno != EACCES && errno != EINVAL && errno != EPERM) {
         perror("setpgid failed");
         return 1;
       }
@@ -40,16 +40,11 @@ int shell_init() {
 
     shell_state_t *sh_state = shell_state_get();
     sh_state->pgid = getpgrp();
-    if (tcsetpgrp(STDIN_FILENO, sh_state->pgid) == -1 && errno != ENOTTY) {
-      perror("tcsetpgrp failed");
-      return 1;
-    }
-    sh_state->shell_tmodes = (struct termios){0};
-    if (tcgetattr(STDIN_FILENO, &sh_state->shell_tmodes) == -1) {
-      perror("tcgetattr failed");
-      return 1;
-    }
+    xtcsetpgrp(STDIN_FILENO, sh_state->pgid);
 
+    sh_state->shell_tmodes = (struct termios){0};
+    xtcgetattr(STDIN_FILENO, &sh_state->shell_tmodes);
+    
   } else {
     fprintf(stderr, "warning: stdin is not a TTY, job control disabled\n");
   }
@@ -68,7 +63,7 @@ void shell_cleanup() {
 }
 
 int shell_loop() {
-  shell_state_t *shell_state = shell_state_get();
+  shell_state_t *sh_state = shell_state_get();
   char *input = NULL;
 
   // Flag to track if an exit warning for running jobs has been given
@@ -83,7 +78,7 @@ int shell_loop() {
       }
 
       // EOF (Ctrl+D)
-      if (shell_state->running_jobs_count > 0 && !warning_exit) {
+      if (sh_state->running_jobs_count > 0 && !warning_exit) {
         printf("you have running jobs\n");
         warning_exit = true;
         continue;
@@ -104,7 +99,7 @@ int shell_loop() {
     exec_node(ast_node);
     parser_free_ast(ast_node);
     free(input);
-  } while (!shell_state->should_exit);
+  } while (!sh_state->should_exit);
 
   return 0;
 }

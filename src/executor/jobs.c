@@ -105,6 +105,7 @@ void jobs_add_job(job_t *job) {
   }
   sh_state->jobs_tail = job;
   sh_state->jobs_count++;
+  sh_state->running_jobs_count++;
 }
 
 bool jobs_remove_job(pid_t pgid) {
@@ -123,8 +124,11 @@ bool jobs_remove_job(pid_t pgid) {
   else
     sh_state->jobs_tail = job->prev;
 
-  jobs_free_job(job, true);
   sh_state->jobs_count--;
+  if (job->state != JOB_STOPPED) {
+    sh_state->running_jobs_count--;
+  }
+  jobs_free_job(job, true);
   return true;
 }
 
@@ -149,6 +153,7 @@ void jobs_free_job(job_t *job, bool deep_free) {
 void jobs_free() {
   shell_state_t *sh_state = shell_state_get();
   job_t *job = sh_state->jobs;
+
   while (job) {
     job_t *next = job->next;
     jobs_free_job(job, true);
@@ -160,7 +165,7 @@ void jobs_free() {
   sh_state->running_jobs_count = 0;
 }
 
-char *jobs_job_str(job_t *job) {
+void jobs_print_job_status(job_t *job) {
   shell_state_t *sh_state = shell_state_get();
 
   char active = ' ';
@@ -179,27 +184,26 @@ char *jobs_job_str(job_t *job) {
   char *state_str;
   switch (job->state) {
   case JOB_RUNNING:
-    state_str = "running";
-    break;
-  case JOB_STOPPED:
-    state_str = "stopped";
+    state_str = " running ";
     break;
   case JOB_DONE:
-    state_str = "  done ";
+    state_str = "   done  ";
+    break;
+  case JOB_STOPPED:
+    state_str = " stopped ";
+    break;
+  case JOB_CONTINUED:
+    state_str = "continued";
     break;
   case JOB_KILLED:
-    state_str = " killed";
+    state_str = "  killed ";
     break;
   default:
-    return strdup("[Error: Unknown job state]\n");
+    printf("Unknown job state: %d\n", job->state);
+    return;
   }
 
-  char *buf;
-  if (asprintf(&buf, "[%d] %c %7s %s\n", job_no, active, state_str,
-               job->command) < 0) {
-    return strdup("[Error: asprintf failed]\n");
-  }
-  return buf;
+  printf("[%d] %c %9s %s\n", job_no, active, state_str, job->command);
 }
 
 job_t *jobs_last_job() { return shell_state_get()->jobs_tail; }
@@ -234,19 +238,24 @@ void jobs_mark_job_stopped(job_t *job) {
   }
   job->state = JOB_STOPPED;
 
-  char *buf = jobs_job_str(job);
-  printf("%s", buf);
-  free(buf);
+  jobs_print_job_status(job);
 
   shell_state_get()->running_jobs_count--;
+}
+
+void jobs_mark_job_continued(job_t *job) {
+  for (process_t *p = job->first_process; p; p = p->next) {
+    if (p->state == PROCESS_STOPPED) {
+      p->state = PROCESS_RUNNING;
+      job->live_processes++;
+    }
+  }
+  job->state = JOB_CONTINUED;
 }
 
 void jobs_mark_job_completed(job_t *job) {
   job->state = JOB_DONE;
 
-  char *buf = jobs_job_str(job);
-  printf("%s", buf);
-  free(buf);
-
+  jobs_print_job_status(job);
   jobs_remove_job(job->pgid);
 }

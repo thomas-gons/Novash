@@ -84,8 +84,8 @@ Novash is built with a modular architecture consisting of:
 - [x] **`type`** - Display command type (builtin or external with path)
 - [x] **`history`** - Display command history
 - [x] **`jobs`** - List background jobs with status
-- [ ] **`fg`** - Bring background job to foreground (TODO: in progress)
-- [ ] **`bg`** - Resume stopped job in background (TODO: in progress)
+- [x] **`fg`** - Bring background job to foreground (apply to last valid job only => TODO)
+- [x] **`bg`** - Resume stopped job in background (apply to last stopped job only => TODO)
 
 ### Job Control
 
@@ -97,7 +97,7 @@ Novash is built with a modular architecture consisting of:
 - [x] Background job completion notification
 - [x] Job listing (`jobs` command)
 - [x] Job status display with command line
-- [ ] Foreground/background job control (`fg`, `bg` - in progress)
+- [x] Foreground/background job control (`fg`, `bg` commands - partially implemented)
 
 ### Signal Handling
 

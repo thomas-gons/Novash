@@ -21,12 +21,13 @@ void handle_sigchld_events() {
   /* Reap any child (or any process in any group) that changed state */
   while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED)) > 0) {
     process_t *p = jobs_find_process_by_pid(pid);
-    job_t *job = p->parent_job;
 
     if (p == NULL) {
       fprintf(stderr, "reaper: unknown pid %d\n", (int)pid);
+      rl_forced_update_display();
       continue;
     }
+    job_t *job = p->parent_job;
 
     if (WIFEXITED(status)) {
       p->state = PROCESS_DONE;

@@ -11,6 +11,7 @@
 
 #include "config.h"
 #include "utils/collections.h"
+#include "utils/system/syscall.h"
 #include <fcntl.h>
 #include <signal.h>
 #include <stdbool.h>

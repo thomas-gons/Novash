@@ -26,6 +26,17 @@
 #include "utils/system/memory.h"
 #include "utils/system/syscall.h"
 
+typedef struct executor_ctx_t {
+  pid_t pgid;
+  int sfd;
+  sigset_t mask, prev_mask;
+  int in_fd;
+  int out_fd;
+  int sync_pipe[2];
+} executor_ctx_t;
+
+int handle_foreground_execution(job_t *job, int sfd);
+
 /**
  * @brief Execute an AST node.
  * Traverses the node and dispatches execution according to its type

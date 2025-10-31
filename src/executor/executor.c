@@ -8,15 +8,6 @@
 
 #include "executor.h"
 
-typedef struct executor_ctx_t {
-  pid_t pgid;
-  int sfd;
-  sigset_t mask, prev_mask;
-  int in_fd;
-  int out_fd;
-  int sync_pipe[2];
-} executor_ctx_t;
-
 /**
  * @brief Configures I/O redirection based on the command node's settings.
  * Closes the standard file descriptors (0, 1, 2) and opens new files
@@ -112,6 +103,7 @@ static pid_t fork_process(process_t *proc, executor_ctx_t *ctx) {
 }
 
 static int handle_pure_builtin_execution(process_t *proc) {
+
   int status = 0;
   int stdin_bak = dup(STDIN_FILENO);
   int stdout_bak = dup(STDOUT_FILENO);
@@ -119,6 +111,8 @@ static int handle_pure_builtin_execution(process_t *proc) {
   if (proc->redir)
     handle_redirection(proc->redir);
 
+  pr_info("Executing pure builtin command '%s' in shell process",
+          proc->argv[0]);
   builtin_t f = builtin_get_function(proc->argv[0]);
   status = f((int)arrlen(proc->argv), proc->argv);
 
@@ -126,15 +120,14 @@ static int handle_pure_builtin_execution(process_t *proc) {
   close(stdin_bak);
   dup2(stdout_bak, STDOUT_FILENO);
   close(stdout_bak);
-
   return status;
 }
 
-static int handle_foreground_execution(job_t *job, executor_ctx_t ctx) {
-  tcsetpgrp(STDIN_FILENO, job->pgid);
+int handle_foreground_execution(job_t *job, int sfd) {
+  xtcsetpgrp(STDIN_FILENO, job->pgid);
 
   struct pollfd pfd;
-  pfd.fd = ctx.sfd;
+  pfd.fd = sfd;
   pfd.events = POLLIN;
 
   while (job->live_processes > 0) {
@@ -149,7 +142,7 @@ static int handle_foreground_execution(job_t *job, executor_ctx_t ctx) {
       /* drain pipe (non-blocking read) */
       struct signalfd_siginfo fdsi;
       ssize_t s;
-      while ((s = read(ctx.sfd, &fdsi, sizeof(fdsi))) == sizeof(fdsi)) {
+      while ((s = read(sfd, &fdsi, sizeof(fdsi))) == sizeof(fdsi)) {
         switch (fdsi.ssi_signo) {
         case SIGCHLD:
           handle_sigchld_events();
@@ -196,8 +189,8 @@ static executor_ctx_t executor_init_context(void) {
                         .out_fd = -1,
                         .sync_pipe = {-1, -1},
                         .sfd = -1,
-                        .mask = (sigset_t){0},
-                        .prev_mask = (sigset_t){0}};
+                        .mask = {{0}},
+                        .prev_mask = {{0}}};
 
   // Synchronization pipe for first child
   xpipe(ctx.sync_pipe);
@@ -227,7 +220,17 @@ static int run_job(job_t *job) {
   if (!job || !job->first_process)
     return -1;
 
+  jobs_add_job(job);
   process_t *proc = job->first_process;
+
+  if (proc->next == NULL && builtin_is_builtin(proc->argv[0])) {
+    // Pure builtin execution (no fork)
+    // job's pgid and processes' pids are not set in this case
+    int status = handle_pure_builtin_execution(proc);
+    jobs_remove_job(0); // pgid is 0 for pure builtins
+    return status;
+  }
+
   executor_ctx_t ctx = executor_init_context();
 
   while (proc) {
@@ -274,13 +277,11 @@ static int run_job(job_t *job) {
     proc = proc->next;
   }
 
-  jobs_add_job(job);
-
   int status;
   if (job->is_background)
     status = handle_background_execution(job, ctx.pgid);
   else
-    status = handle_foreground_execution(job, ctx);
+    status = handle_foreground_execution(job, ctx.sfd);
 
   executor_destroy_context(&ctx);
   return status;

@@ -79,8 +79,8 @@ void history_save_command(const char *cmd) {
 
   time_t now = time(NULL);
   size_t idx;
-  shell_state_t *shell_state = shell_state_get();
-  history_t *hist = shell_state->hist;
+  shell_state_t *sh_state = shell_state_get();
+  history_t *hist = sh_state->hist;
 
   // Determine the storage index (idx).
   if (hist->cmd_count < HIST_SIZE) {
