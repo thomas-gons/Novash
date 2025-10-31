@@ -1,6 +1,7 @@
 /*
  * Novash — Minimalist shell implementation
- * Executor module: executes AST nodes (commands, pipelines, sequences, conditionals)
+ * Executor module: executes AST nodes (commands, pipelines, sequences,
+ * conditionals)
  *
  * Copyright (C) 2025 Thomas Gons
  * Licensed under the GNU General Public License v3 or later
@@ -12,18 +13,18 @@
 
 #define _DEFAULT_SOURCE
 
-#include <stdio.h>
 #include <errno.h>
-#include <unistd.h>
 #include <poll.h>
+#include <stdio.h>
+#include <unistd.h>
 
-#include "utils/log.h"
-#include "shell/signal.h"
 #include "builtin/builtin.h"
 #include "executor/jobs.h"
 #include "parser/parser.h"
-#include "utils/system/syscall.h"
+#include "shell/signal.h"
+#include "utils/log.h"
 #include "utils/system/memory.h"
+#include "utils/system/syscall.h"
 
 /**
  * @brief Execute an AST node.

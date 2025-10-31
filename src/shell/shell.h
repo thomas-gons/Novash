@@ -13,37 +13,38 @@
 #ifndef __SHELL_H__
 #define __SHELL_H__
 
-#include <stdio.h>
-#include <signal.h>
-#include <string.h>
-#include <errno.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <readline/readline.h>
-#include <readline/history.h>
-#include "shell/state.h"
-#include "shell/signal.h"
+#include "executor/executor.h"
 #include "executor/jobs.h"
 #include "history/history.h"
 #include "lexer/lexer.h"
 #include "parser/parser.h"
-#include "executor/executor.h"
+#include "shell/signal.h"
+#include "shell/state.h"
+#include <errno.h>
+#include <fcntl.h>
+#include <readline/history.h>
+#include <readline/readline.h>
+#include <signal.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 /**
  * @brief Initializes all necessary shell subsystems.
- * * Sets up signal handlers (to ignore SIGTTOU/SIGTTIN and handle SIGINT/SIGCHLD),
- * establishes terminal control (tcsetpgrp), and initializes global state, 
- * and output buffering.
- * * @return 0 on successful initialization, 1 on failure (e.g., terminal control error).
+ * * Sets up signal handlers (to ignore SIGTTOU/SIGTTIN and handle
+ * SIGINT/SIGCHLD), establishes terminal control (tcsetpgrp), and initializes
+ * global state, and output buffering.
+ * * @return 0 on successful initialization, 1 on failure (e.g., terminal
+ * control error).
  */
 int shell_init();
 
 /**
  * @brief Executes the main Read-Eval-Print Loop (REPL) of the shell.
- * * This function handles user input via Readline, processes signal flags set 
- * asynchronously, parses the command line, and executes the resulting AST. 
- * The loop continues until the 'exit' command is executed or the user confirms 
+ * * This function handles user input via Readline, processes signal flags set
+ * asynchronously, parses the command line, and executes the resulting AST.
+ * The loop continues until the 'exit' command is executed or the user confirms
  * exit while running background jobs.
  * * @return The final exit status of the shell process (0 on clean exit).
  */
@@ -51,7 +52,7 @@ int shell_loop();
 
 /**
  * @brief Performs necessary cleanup before the shell terminates.
- * * This includes trimming and saving command history 
+ * * This includes trimming and saving command history
  * and releasing the global shell state memory.
  */
 void shell_cleanup();

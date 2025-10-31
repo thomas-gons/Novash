@@ -9,11 +9,10 @@
 #ifndef __MEMORY_H__
 #define __MEMORY_H__
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
-
 
 // All the wrappers around memory allocation follow the OOM handling policy
 // they exit the program if allocation fails
@@ -23,6 +22,5 @@ void *xcalloc(size_t count, size_t size);
 void *xrealloc(void *ptr, size_t size);
 char *xstrdup(const char *s);
 int xsnprintf(char *buf, size_t buf_sz, const char *fmt, ...);
-
 
 #endif // __MEMORY_H__
