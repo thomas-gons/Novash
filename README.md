@@ -24,11 +24,12 @@ Novash is built with a modular architecture consisting of:
 
 ### Lexer & Tokenization
 
-- [x] Tokenization with support for:
+- [x] Tokenization with 11 token types including:
   - Words and commands
   - Quotes (single `'` and double `"`) with proper nesting
   - Metacharacters (`|`, `&`, `;`, `<`, `>`, `>>`, `&&`, `||`)
   - File descriptor tokens for redirections
+  - End-of-file marker
 - [x] Quote removal in token values while tracking raw input length
 - [x] Whitespace and metacharacter boundary detection
 
@@ -76,8 +77,8 @@ Novash is built with a modular architecture consisting of:
 - [x] **`type`** - Display command type (builtin or external with path)
 - [x] **`history`** - Display command history
 - [x] **`jobs`** - List background jobs with status
-- [x] **`fg`** - Bring background job to foreground
-- [x] **`bg`** - Resume stopped job in background
+- [ ] **`fg`** - Bring background job to foreground (TODO: in progress)
+- [ ] **`bg`** - Resume stopped job in background (TODO: in progress)
 
 ### Job Control
 
@@ -87,8 +88,9 @@ Novash is built with a modular architecture consisting of:
 - [x] Job list management (add, remove, find by PGID)
 - [x] Process tracking within jobs
 - [x] Background job completion notification
-- [x] Foreground/background job control (`fg`, `bg`, `jobs`)
+- [x] Job listing (`jobs` command)
 - [x] Job status display with command line
+- [ ] Foreground/background job control (`fg`, `bg` - in progress)
 
 ### Signal Handling
 
@@ -368,13 +370,7 @@ $ sleep 10 &
 $ jobs
 [1]+ Running                 sleep 10 &
 
-$ fg %1
-sleep 10
-^Z
-[1]+ Stopped                 sleep 10
-
-$ bg %1
-[1]+ Running                 sleep 10 &
+# Note: fg and bg commands are planned but not yet fully implemented
 ```
 
 ### History
