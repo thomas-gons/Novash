@@ -8,36 +8,36 @@
 
 #include "jobs.h"
 
+static unsigned next_job_id = 1;
 
 process_t *jobs_new_process(cmd_node_t *cmd, bool deep_copy) {
     process_t *process = xcalloc(1, sizeof(process_t));
 
     char **argv_cp = NULL;
     if (deep_copy) {
-        size_t argc = arrlen(cmd->argv);
-        argv_cp = xmalloc((argc + 1) * sizeof(char *));
-        for (size_t i = 0; i < argc; i++) {
-            argv_cp[i] = xstrdup(cmd->argv[i]);
+        argv_cp = NULL;
+        for (int i = 0; i < arrlen(cmd->argv); i++) {
+            arrpush(argv_cp, xstrdup(cmd->argv[i]));
         }
-        argv_cp[argc] = NULL; // ensure NULL-terminated
+        arrpushnc(argv_cp, NULL);
     } else {
         argv_cp = cmd->argv;
+        arrpushnc(argv_cp, NULL);
     }
 
     redirection_t *redir_cp = NULL;
     if (deep_copy) {
-        size_t redir_count = arrlen(cmd->redir);
+        int redir_count = (int) arrlen(cmd->redir);
         if (redir_count > 0) {
-            redir_cp = xmalloc((redir_count + 1) * sizeof(redirection_t)); // +1 for sentinel
-            for (size_t i = 0; i < redir_count; i++) {
+            redir_cp = NULL;
+            for (int i = 0; i < redir_count; i++) {
                 redirection_t r = {
                     .fd = cmd->redir[i].fd,
                     .type = cmd->redir[i].type,
                     .target = xstrdup(cmd->redir[i].target)
                 };
-                redir_cp[i] = r;
+                arrpush(redir_cp, r);
             }
-            redir_cp[redir_count] = (redirection_t){ .fd = -1, .target = NULL }; // sentinel
         }
     } else {
         redir_cp = cmd->redir;
@@ -45,6 +45,7 @@ process_t *jobs_new_process(cmd_node_t *cmd, bool deep_copy) {
     
     process->argv = argv_cp;
     process->redir = redir_cp;
+
 
     // xcalloc already set other fields to 0/NULL
     return process;
@@ -68,13 +69,13 @@ void jobs_free_process(process_t *process, bool deep_free) {
             for (size_t i = 0; process->argv[i] != NULL; i++) {
                 free(process->argv[i]);
             }
-            free(process->argv);
+            arrfree(process->argv);
         }
         if (process->redir) {
             for (size_t i = 0; process->redir[i].target != NULL; i++) {
                 free(process->redir[i].target);
             }
-            free(process->redir);
+            arrfree(process->redir);
         }
     }
     free(process);
@@ -85,175 +86,147 @@ job_t *jobs_new_job() {
     if (!job) return NULL;
 
     job->state = JOB_RUNNING;
-
+    job->id = next_job_id++;
+    
     // other fields are zeroed by xcalloc
     return job;
 }
 
+// --- Job list management with doubly-linked list ---
 void jobs_add_job(job_t *job) {
-    shell_state_t *shell_state = shell_state_get();
-    job->next = NULL; // security
-    if (shell_state->jobs_count == 0) {
-        shell_state->jobs = job;
+    shell_state_t *sh_state = shell_state_get();
+    job->next = NULL;
+    job->prev = sh_state->jobs_tail;
+
+    if (!sh_state->jobs) {
+        sh_state->jobs = job;
     } else {
-        job_t *ptr = shell_state->jobs;
-        while (ptr->next) ptr = ptr->next;
-        ptr->next = job;
+        sh_state->jobs_tail->next = job;
     }
-    shell_state->jobs_count++;
+    sh_state->jobs_tail = job;
+    sh_state->jobs_count++;
 }
 
 bool jobs_remove_job(pid_t pgid) {
-    shell_state_t *shell_state = shell_state_get();
-    if (shell_state->jobs_count == 0) return false;
+    shell_state_t *sh_state = shell_state_get();
+    job_t *job = jobs_find_job_by_pgid(pgid);
+    if (!job) return false;
 
-    job_t *job_ptr = shell_state->jobs;
-    job_t *prev_job_ptr = NULL;
+    if (job->prev) job->prev->next = job->next;
+    else sh_state->jobs = job->next;
 
-    while (job_ptr != NULL) {
-        if (job_ptr->pgid == pgid) {
-            if (!prev_job_ptr) {
-                shell_state->jobs = job_ptr->next;
-            } else {
-                prev_job_ptr->next = job_ptr->next;
-            }
-            free(job_ptr);
-            shell_state->jobs_count--;
-            return true;
-        }
-        prev_job_ptr = job_ptr;
-        job_ptr = job_ptr->next;
-    }
-    return false;
-}
+    if (job->next) job->next->prev = job->prev;
+    else sh_state->jobs_tail = job->prev;
 
-job_t *jobs_get_job(pid_t pgid) {
-    shell_state_t *shell_state = shell_state_get();
-    if (shell_state->jobs_count == 0) return NULL;
-
-    job_t *job_ptr = shell_state->jobs;
-    while (job_ptr != NULL) {
-        if (job_ptr->pgid == pgid) {
-            return job_ptr;
-        }
-        job_ptr = job_ptr->next;
-    }
-    return NULL;
+    jobs_free_job(job, true);
+    sh_state->jobs_count--;
+    return true;
 }
 
 void jobs_free_job(job_t *job, bool deep_free) {
     if (!job) return;
 
-    process_t *proc_ptr = job->first_process;
-    while (proc_ptr != NULL) {
-        process_t *next_proc = proc_ptr->next;
-        jobs_free_process(proc_ptr, deep_free);
-        proc_ptr = next_proc;
+    process_t *p = job->first_process;
+    while (p) {
+        process_t *next = p->next;
+        jobs_free_process(p, deep_free);
+        p = next;
     }
 
-    free(job->command);
+    if (deep_free && job->command) {
+        free(job->command);
+    }
+
     free(job);
 }
 
-char *jobs_job_str(job_t *job, unsigned job_id) {
-    shell_state_t *shell_state = shell_state_get();
-    
-    char *str_state;
-    // stringify the job enum but (mannualy centered)
+void jobs_free() {
+    shell_state_t *sh_state = shell_state_get();
+    job_t *job = sh_state->jobs;
+    while (job) {
+        job_t *next = job->next;
+        jobs_free_job(job, true);
+        job = next;
+    }
+    sh_state->jobs = NULL;
+    sh_state->jobs_tail = NULL;
+    sh_state->jobs_count = 0;
+    sh_state->running_jobs_count = 0;
+}
+
+char *jobs_job_str(job_t *job) {
+    shell_state_t *sh_state = shell_state_get();
+
+    char active = ' ';
+    if (job == sh_state->jobs_tail) active = '+';
+    else if (job == sh_state->jobs_tail->prev) active = '-';
+
+    unsigned job_no = 1;
+    for (job_t *j = sh_state->jobs; j; j = j->next) {
+        if (j == job) break;
+        job_no++;
+    }
+
+    char *state_str;
     switch(job->state) {
-        case JOB_RUNNING: str_state = "running"; break;
-        case JOB_DONE:    str_state = "  done "; break;
-        case JOB_STOPPED: str_state = "stopped"; break;
-        case JOB_KILLED:  str_state = " killed"; break;
-        default: 
-            return strdup("[Error: Unknown job state]\n"); 
+        case JOB_RUNNING: state_str = "running"; break;
+        case JOB_STOPPED: state_str = "stopped"; break;
+        case JOB_DONE:    state_str = "  done "; break;
+        case JOB_KILLED:  state_str = " killed"; break;
+        default: return strdup("[Error: Unknown job state]\n");
     }
 
-    // Determine active job character ('+', '-', or ' ')
-    char active_job_char = ' ';
-    
-    // Check for the most recent job (+)
-    if (shell_state->jobs_count > 0 && job_id == shell_state->jobs_count - 1) {
-        active_job_char = '+'; 
-    // Check for the second most recent job (-)
-    } else if (shell_state->jobs_count > 1 && job_id == shell_state->jobs_count - 2) {
-        active_job_char = '-'; 
+    char *buf;
+    if (asprintf(&buf, "[%d] %c %7s %s\n", job_no, active, state_str, job->command) < 0) {
+        return strdup("[Error: asprintf failed]\n");
     }
-
-    char *buf = NULL;
-    
-    int result = asprintf(&buf, "[%d] %c %7s %s\n", 
-                          job_id + 1,        // ID display (1-based)
-                          active_job_char,   // Active status char
-                          str_state,         // Aligned state string
-                          job->command);        // Command string
-
-    // Check if asprintf failed to allocate memory
-    if (result < 0 || buf == NULL) {
-        return strdup("[Error: asprintf failed to allocate memory]\n");
-    }
-
     return buf;
 }
 
-char *jobs_last_job_str() {
-    shell_state_t *shell_state = shell_state_get();
-    if (shell_state->jobs_count == 0) return strdup("");
-
-    job_t *job_ptr = shell_state->jobs;
-    unsigned job_id = 0;
-    while (job_ptr->next != NULL) {
-        job_ptr = job_ptr->next;
-        job_id++;
-    }
-    return jobs_job_str(job_ptr, job_id);
+job_t *jobs_last_job() {
+    return shell_state_get()->jobs_tail;
 }
 
-void jobs_free() {
-    shell_state_t *shell_state = shell_state_get();
-    job_t *job_ptr = shell_state->jobs;
-    while (job_ptr != NULL) {
-        job_t *next_job = job_ptr->next;
-        jobs_free_job(job_ptr, true);
-        job_ptr = next_job;
-    }
-    shell_state->jobs = NULL;
-    shell_state->jobs_count = 0;
-    shell_state->running_jobs_count = 0;
-}
-
-process_t *jobs_find_process_by_pid(pid_t pgid) {
-    shell_state_t *shell_state = shell_state_get();
-    job_t *job_ptr = shell_state->jobs;
-    while (job_ptr != NULL) {
-        process_t *proc_ptr = job_ptr->first_process;
-        while (proc_ptr != NULL) {
-            if (proc_ptr->pid == pgid) {
-                return proc_ptr;
-            }
-            proc_ptr = proc_ptr->next;
-        }
-        job_ptr = job_ptr->next;
-    }
-    return NULL;
+job_t *jobs_second_last_job() {
+    job_t *tail = shell_state_get()->jobs_tail;
+    return tail ? tail->prev : NULL;
 }
 
 job_t *jobs_find_job_by_pgid(pid_t pgid) {
-    shell_state_t *shell_state = shell_state_get();
-    job_t *job_ptr = shell_state->jobs;
-    while (job_ptr != NULL) {
-        if (job_ptr->pgid == pgid) {
-            return job_ptr;
-        }
-        job_ptr = job_ptr->next;
+    for (job_t *job = shell_state_get()->jobs_tail; job; job = job->prev) {
+        if (job->pgid == pgid) return job;
     }
     return NULL;
 }
 
-/* mark all running processes as stopped (called when a stop is observed) */
+process_t *jobs_find_process_by_pid(pid_t pid) {
+    for (job_t *job = shell_state_get()->jobs_tail; job; job = job->prev) {
+        for (process_t *p = job->first_process; p; p = p->next) {
+            if (p->pid == pid) return p;
+        }
+    }
+    return NULL;
+}
+
 void jobs_mark_job_stopped(job_t *job) {
-    process_t *p;
-    for (p = job->first_process; p; p = p->next) {
+    for (process_t *p = job->first_process; p; p = p->next) {
         if (p->state == PROCESS_RUNNING) p->state = PROCESS_STOPPED;
     }
+    job->state = JOB_STOPPED;
+
+    char *buf = jobs_job_str(job);
+    printf("%s", buf);
+    free(buf);
+
+    shell_state_get()->running_jobs_count--;
+}
+
+void jobs_mark_job_completed(job_t *job) {
+    job->state = JOB_DONE;
+
+    char *buf = jobs_job_str(job);
+    printf("%s", buf);
+    free(buf);
+
+    jobs_remove_job(job->pgid);
 }

@@ -13,6 +13,7 @@ show_help() {
     echo "Options:"
     echo "  -d, --debug       Build in Debug mode"
     echo "  -b, --build-only  Only build, do not run shell or tests"
+    echo "  -bd               Shorthand for -b -d"
     echo "  -t, --test        Build and run tests"
     echo "  -c, --clean       Remove the build directories and exit"
     echo "  -h, --help        Display this help message"
@@ -23,7 +24,7 @@ show_help() {
 # --- Default config ---
 BUILD_CONFIG="Release"
 BUILD_SUB_DIR="release"
-CMAKE_FLAGS=""
+CMAKE_FLAGS="-DLOG_LEVEL=WARN"
 CLEAN=false
 BUILD_ONLY=false
 RUN_TESTS=false
@@ -34,19 +35,26 @@ while [[ $# -gt 0 ]]; do
         -d|--debug)
             BUILD_CONFIG="Debug"
             BUILD_SUB_DIR="debug"
-            CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON -DLOG_LEVEL=INFO"
-            shift
-            ;;
-        -c|--clean)
-            CLEAN=true
+            CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON -DLOG_LEVEL=DEBUG"
             shift
             ;;
         -b|--build-only)
             BUILD_ONLY=true
             shift
             ;;
+        -bd)
+            BUILD_ONLY=true
+            BUILD_CONFIG="Debug"
+            BUILD_SUB_DIR="debug"
+            CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DLOG_LEVEL=INFO"
+            shift
+            ;;
         -t|--test)
             RUN_TESTS=true
+            shift
+            ;;
+        -c|--clean)
+            CLEAN=true
             shift
             ;;
         -h|--help)

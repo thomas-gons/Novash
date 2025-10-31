@@ -37,11 +37,10 @@ elseif(LOG_LEVEL STREQUAL "INFO")
 elseif(LOG_LEVEL STREQUAL "DEBUG")
     set(LOG_LEVEL_INT 4)
 else()
-    message(WARNING "Unknown LOG_LEVEL='${LOG_LEVEL}', defaulting to INFO")
-    set(LOG_LEVEL_INT 3)
+    message(WARNING "Unknown LOG_LEVEL='${LOG_LEVEL}', defaulting to WARN")
+    set(LOG_LEVEL_INT 2)
 endif()
 
-add_compile_definitions(LOG_LEVEL=${LOG_LEVEL_INT})
 message(STATUS "Log level set to ${LOG_LEVEL} (${LOG_LEVEL_INT})")
 
 # -----------------------
@@ -124,12 +123,14 @@ pkg_check_modules(READLINE REQUIRED readline)
 
 # --- Build the core as a library ---
 add_library(novash_core ${NOVASH_SOURCES})
+target_compile_definitions(novash_core PUBLIC LOG_LEVEL=${LOG_LEVEL_INT})
 target_include_directories(novash_core PUBLIC src external ${READLINE_INCLUDE_DIRS})
 target_link_libraries(novash_core PUBLIC ${READLINE_LIBRARIES})
 novash_target_enable_warnings(novash_core)
 
 # --- Main executable (shell) ---
 add_executable(nsh src/main.c)
+target_compile_definitions(nsh PRIVATE LOG_LEVEL=${LOG_LEVEL_INT})
 target_link_libraries(nsh PRIVATE novash_core)
 novash_target_enable_warnings(nsh)
 
@@ -140,6 +141,7 @@ set(TEST_SOURCES
 
 if (TEST_SOURCES)
     add_executable(tests_novash ${TEST_SOURCES})
+    target_compile_definitions(tests_novash PRIVATE LOG_LEVEL=${LOG_LEVEL_INT})
     target_include_directories(tests_novash PRIVATE ${CRITERION_INCLUDE_DIRS} src)
     target_link_libraries(tests_novash PRIVATE novash_core ${CRITERION_LIBRARIES} ${READLINE_LIBRARIES})
     enable_testing()

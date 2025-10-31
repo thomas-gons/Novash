@@ -9,9 +9,9 @@
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
 
-#define MAX_JOBS 64
-#define HIST_SIZE 10
+#define HIST_SIZE 1000
 #define COMMAND_NOT_FOUND_EXIT_CODE 127
+#define JOB_STOPPED_EXIT_CODE 146
 #define HIST_FILENAME ".nsh_history"
 
 

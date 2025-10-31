@@ -37,20 +37,5 @@ void handle_sigint_event();
  */
 void handle_sigchld_events();
 
-/**
- * @brief Asynchronous signal handler for SIGINT (Ctrl+C).
- * * This function must be minimal and only sets the atomic sigint_received flag 
- * in the shell state for later synchronous processing.
- * * @param sig The signal number (SIGINT).
- */
-void sigint_handler(int sig);
-
-/**
- * @brief Asynchronous signal handler for SIGCHLD (Child status change).
- * * This function must be minimal and only sets the atomic sigchld_received flag 
- * in the shell state for later synchronous processing.
- * * @param sig The signal number (SIGCHLD).
- */
-void sigchld_handler(int sig);
 
 #endif // __SIGNAL_H__

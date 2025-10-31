@@ -45,19 +45,17 @@ static inline void log_msg(const char *color, const char *level,
     fputs(buf, stderr);
 }
 
-typedef enum {
-    LOG_LEVEL_NONE  = 0,
-    LOG_LEVEL_ERR   = 1,
-    LOG_LEVEL_WARN  = 2,
-    LOG_LEVEL_INFO  = 3,
-    LOG_LEVEL_DEBUG = 4
-} log_level_t;
+#define LOG_LEVEL_NONE  0
+#define LOG_LEVEL_ERR   1
+#define LOG_LEVEL_WARN  2
+#define LOG_LEVEL_INFO  3
+#define LOG_LEVEL_DEBUG 4
 
 
-#if LOG_LEVEL >= LOG_LEVEL_INFO
-    #define pr_info(fmt, ...) log_msg(BLUE, "INFO", __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+#if LOG_LEVEL >= LOG_LEVEL_ERR
+    #define pr_err(fmt, ...)  log_msg(RED, "ERR", __FILE__, __LINE__, fmt, ##__VA_ARGS__)
 #else
-    #define pr_info(fmt, ...) do {} while (0)
+    #define pr_err(fmt, ...)  do {} while (0)
 #endif
 
 #if LOG_LEVEL >= LOG_LEVEL_WARN
@@ -66,11 +64,13 @@ typedef enum {
     #define pr_warn(fmt, ...) do {} while (0)
 #endif
 
-#if LOG_LEVEL >= LOG_LEVEL_ERR
-    #define pr_err(fmt, ...)  log_msg(RED, "ERR", __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+
+#if LOG_LEVEL >= LOG_LEVEL_INFO
+    #define pr_info(fmt, ...) log_msg(BLUE, "INFO", __FILE__, __LINE__, fmt, ##__VA_ARGS__)
 #else
-    #define pr_err(fmt, ...)  do {} while (0)
+    #define pr_info(fmt, ...) do {} while (0)
 #endif
+
 
 #if LOG_LEVEL >= LOG_LEVEL_DEBUG
     #define pr_debug(fmt, ...) log_msg("\x1b[35m", "DEBUG", __FILE__, __LINE__, fmt, ##__VA_ARGS__)

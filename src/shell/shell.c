@@ -15,34 +15,50 @@
 static lexer_t *lex;
 
 
-int shell_init() {
+static int shell_event_hook() {
+    handle_sigchld_events();
+    // Placeholder for future event handling (e.g., signal processing)
+    return 0;
+}
 
+int shell_init() {
     // Initialize shell state early so signal handlers can safely access it.
     shell_state_init();
+    builtin_init();
+    signal(SIGTTOU, SIG_IGN);
+    signal(SIGTTIN, SIG_IGN);
 
     // create lexer after state init
     lex = lexer_new();
-
     // Only try to take terminal control if stdin is a TTY
     if (isatty(STDIN_FILENO)) {
         // Put shell in its own process group
-        pid_t shell_pid = getpid();
-        if (setpgid(shell_pid, shell_pid) == -1) {
-            // ignore/setpgid failure if already in pgid
+        if (setpgid(0, 0) == -1) {
+            if (errno != EACCES && errno != EINVAL) {
+                perror("setpgid failed");
+                return 1;
+            }
         }
 
-        // Give terminal control to the shell's process group. Essential for job control.
-        if (tcsetpgrp(STDIN_FILENO, getpgrp()) == -1 && errno != ENOTTY) {
+        shell_state_t *sh_state = shell_state_get();
+        sh_state->pgid = getpgrp();
+        if (tcsetpgrp(STDIN_FILENO, sh_state->pgid) == -1 && errno != ENOTTY) {
             perror("tcsetpgrp failed");
             return 1;
         }
+        sh_state->shell_tmodes = (struct termios){0};
+        if (tcgetattr(STDIN_FILENO, &sh_state->shell_tmodes) == -1) {
+            perror("tcgetattr failed");
+            return 1;
+        }
+
     } else {
         fprintf(stderr, "warning: stdin is not a TTY, job control disabled\n");
     }
 
     // Disable buffering for stdout. Ensures immediate output for status messages.
     setbuf(stdout, NULL);
-    // rl_event_hook = signal_handling_hook;
+    rl_event_hook = shell_event_hook;
     using_history();
     return 0;
 }
@@ -55,7 +71,6 @@ void shell_cleanup() {
 
 int shell_loop() {
     shell_state_t *shell_state = shell_state_get();
-
     char *input = NULL;
 
     // Flag to track if an exit warning for running jobs has been given
@@ -84,11 +99,13 @@ int shell_loop() {
         lexer_init(lex, input);
         
         ast_node_t *ast_node = parser_create_ast(lex);
+        char *ast_str = parser_ast_str(ast_node, 0);
+        pr_debug("AST:\n%s", ast_str);
+        free(ast_str);
         history_save_command(lex->input);
         exec_node(ast_node);
         parser_free_ast(ast_node);
         free(input);
-        
     } while (!shell_state->should_exit);
     
     return 0;

@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <termios.h>
 #include "utils/collections.h"
 #include "config.h"
 
@@ -42,13 +43,12 @@ typedef struct shell_state_t{
 
     history_t *hist;
     job_t *jobs;
+    job_t *jobs_tail;
     size_t jobs_count;
     size_t running_jobs_count;
 
-    // --- Signal State (Accessed by signal handlers) ---
-    volatile sig_atomic_t sigint_received;
-    volatile sig_atomic_t sigchld_received;
-    volatile sig_atomic_t sigstop_received;
+    pid_t pgid;
+    struct termios shell_tmodes;
 } shell_state_t;
 
 /**
@@ -71,6 +71,11 @@ shell_state_t *shell_state_get();
  */
 char *shell_state_getenv(const char *key);
 
+/**
+ * @brief Regains control of the terminal for the shell process.
+ * This is typically called after a foreground job has completed or stopped.
+ */
+void shell_regain_control();
 /**
  * @brief Frees all dynamically allocated resources within the shell state.
  * This includes the environment hashmap, history, jobs, and cwd.

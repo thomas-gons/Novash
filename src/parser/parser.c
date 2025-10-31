@@ -32,7 +32,7 @@ static char **parse_arguments(lexer_t *lex) {
     char **argv = NULL;
 
     while (g_tok.type == TOK_WORD) {
-        // the global token value is continually overwritten thus we need to xstrdup
+        // the global token value is continually overwritten thus we need to xxstrdup
         arrpush(argv, xstrdup(g_tok.value));
         next_token(lex);
     }
@@ -93,7 +93,7 @@ static redirection_t *parse_redirection(lexer_t *lex) {
             exit(EXIT_FAILURE);
         }
 
-        // same reason as argv, need to xstrdup
+        // same reason as argv, need to xxstrdup
         r.target = xstrdup(g_tok.value);
         arrpush(redir, r);
         next_token(lex);
@@ -255,6 +255,12 @@ void parser_free_ast(ast_node_t *node) {
             break;
         }
         case NODE_PIPELINE:
+            // free pipeline nodes array
+            for (int i = 0; i < arrlen(node->pipe.nodes); i++) {
+                parser_free_ast(node->pipe.nodes[i]);
+            }
+            arrfree(node->pipe.nodes);
+            break;
         case NODE_CONDITIONAL:
             parser_free_ast(node->cond.left);
             parser_free_ast(node->cond.right);
@@ -272,60 +278,92 @@ void parser_free_ast(ast_node_t *node) {
     free(node);
 }
 
-void print_ast(ast_node_t *node, int indent) {
+static void rec_ast(ast_node_t *node, int indent, char ***lines) {
     if (!node) return;
 
-    for (int i = 0; i < indent; i++) printf("  ");
+    char buf[1024];
 
     switch (node->type) {
         case NODE_CMD:
-            printf("CMD: %s", node->cmd.argv[0]);
-            
-            // print all arguments
-            for (int i = 1; i < arrlen(node->cmd.argv); i++)
-                printf(" %s", node->cmd.argv[i]);
+            {
+                // indentation
+                int pos = snprintf(buf, sizeof(buf), "%*sCMD: %s", indent, "", node->cmd.argv[0]);
 
-            // print redirections if any
-            if (arrlen(node->cmd.redir) > 0) {
-                printf(" [");
-                for (int i = 0; i < arrlen(node->cmd.redir); i++) {
-                    redirection_t r = node->cmd.redir[i];
-                    printf("%d", r.fd);
-                    switch (r.type) {
-                        case REDIR_IN: printf("<"); break;
-                        case REDIR_OUT: printf(">"); break;
-                        case REDIR_APPEND: printf(">>"); break;
+                // arguments
+                for (int i = 1; i < arrlen(node->cmd.argv); i++)
+                    pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, " %s", node->cmd.argv[i]);
+
+                // redirections
+                if (arrlen(node->cmd.redir) > 0) {
+                    pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, " [");
+                    for (int i = 0; i < arrlen(node->cmd.redir); i++) {
+                        redirection_t r = node->cmd.redir[i];
+                        pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "%d", r.fd);
+                        switch (r.type) {
+                            case REDIR_IN: pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "<"); break;
+                            case REDIR_OUT: pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, ">"); break;
+                            case REDIR_APPEND: pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, ">>"); break;
+                            default: break;
+                        }
+                        pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "%s", r.target);
+                        if (i < arrlen(node->cmd.redir) - 1)
+                            pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, ", ");
                     }
-                    printf("%s", r.target);
-                    if (i < arrlen(node->cmd.redir) - 1) printf(", ");
+                    pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "]");
                 }
-                printf("]");
-            }
 
-            // add & if background execution
-            if (node->cmd.is_bg) printf(" &");
-            printf("\n");
+                // background
+                if (node->cmd.is_bg)
+                    pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, " &");
+
+                arrpush(*lines, xstrdup(buf));
+            }
             break;
-        
-        // for other node types, print their type and recursively
-        // print children until cmd nodes are reached
+
         case NODE_PIPELINE:
-            for (int i = 0; i < arrlen(node->pipe.nodes); i++) {
-                print_ast(node->pipe.nodes[i], indent + 1);
-            }
+            snprintf(buf, sizeof(buf), "%*sPIPELINE", indent, "");
+            arrpush(*lines, xstrdup(buf));
+            for (int i = 0; i < arrlen(node->pipe.nodes); i++)
+                rec_ast(node->pipe.nodes[i], indent + 1, lines);
             break;
-        
+
         case NODE_CONDITIONAL:
-            printf("CONDITIONAL (%s)\n", node->cond.op == COND_AND ? "&&" : "||");
-            print_ast(node->cond.left, indent + 1);
-            print_ast(node->cond.right, indent + 1);
+            snprintf(buf, sizeof(buf), "%*sCONDITIONAL (%s)", indent, "",
+                     node->cond.op == COND_AND ? "&&" : "||");
+            arrpush(*lines, xstrdup(buf));
+            rec_ast(node->cond.left, indent + 1, lines);
+            rec_ast(node->cond.right, indent + 1, lines);
             break;
-        
+
         case NODE_SEQUENCE:
-            printf("SEQUENCE\n");
-            for (int i = 0; i < arrlen(node->seq.nodes); i++) {
-                print_ast(node->seq.nodes[i], indent + 1);
-            }
+            snprintf(buf, sizeof(buf), "%*sSEQUENCE", indent, "");
+            arrpush(*lines, xstrdup(buf));
+            for (int i = 0; i < arrlen(node->seq.nodes); i++)
+                rec_ast(node->seq.nodes[i], indent + 1, lines);
             break;
     }
+}
+
+char *parser_ast_str(ast_node_t *node, int indent) {
+    if (!node) return NULL;
+
+    char **lines = NULL;
+    rec_ast(node, indent, &lines);
+
+    size_t total_len = 0;
+    for (int i = 0; i < arrlen(lines); i++)
+        total_len += strlen(lines[i]) + 1;
+
+    char *out = malloc(total_len + 1);
+    if (!out) exit(EXIT_FAILURE);
+    out[0] = '\0';
+
+    for (int i = 0; i < arrlen(lines); i++) {
+        strcat(out, lines[i]);
+        strcat(out, "\n");
+        free(lines[i]);
+    }
+    arrfree(lines);
+
+    return out;
 }
