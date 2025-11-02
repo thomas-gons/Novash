@@ -178,8 +178,7 @@ int handle_foreground_execution(job_t *job, int sfd) {
 }
 
 static int handle_background_execution(job_t *job, pid_t pgid) {
-  shell_state_t *sh_state = shell_state_get();
-  printf("[%lu] %d\n", sh_state->jobs_count, pgid);
+  printf("[%zu] %d\n", job->id, pgid);
   return 0;
 }
 

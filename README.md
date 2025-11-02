@@ -48,8 +48,8 @@ The goal is to implement, from scratch the essential components of a modern UNIX
 - [x] **`type`** - Display command type (builtin or external with path)
 - [x] **`history`** - Display command history
 - [x] **`jobs`** - List background jobs with status
-- [x] **`fg`** - Bring background job to foreground (apply to last valid job only => TODO)
-- [x] **`bg`** - Resume stopped job in background (apply to last stopped job only => TODO)
+- [x] **`fg`** - Bring background job to foreground
+- [x] **`bg`** - Resume stopped job in background
 
 ### Job Control
 
@@ -61,7 +61,7 @@ The goal is to implement, from scratch the essential components of a modern UNIX
 - [x] Background job completion notification
 - [x] Job listing (`jobs` command)
 - [x] Job status display with command line
-- [x] Foreground/background job control (`fg`, `bg` commands - partially implemented)
+- [x] Foreground/background job control (`fg`, `bg` commands)
 
 ### Signal Handling
 

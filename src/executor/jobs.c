@@ -8,8 +8,6 @@
 
 #include "jobs.h"
 
-static unsigned next_job_id = 1;
-
 process_t *jobs_new_process(cmd_node_t *cmd, bool deep_copy) {
   process_t *process = xcalloc(1, sizeof(process_t));
 
@@ -86,8 +84,6 @@ job_t *jobs_new_job() {
     return NULL;
 
   job->state = JOB_RUNNING;
-  job->id = next_job_id++;
-
   // other fields are zeroed by xcalloc
   return job;
 }
@@ -97,6 +93,15 @@ void jobs_add_job(job_t *job) {
   shell_state_t *sh_state = shell_state_get();
   job->next = NULL;
   job->prev = sh_state->jobs_tail;
+
+  size_t new_id = 1;
+  for (job_t *j = sh_state->jobs; j != NULL; j = j->next) {
+    if (j->id >= new_id + 1) {
+      break;
+    }
+    new_id++;
+  }
+  job->id = new_id;
 
   if (!sh_state->jobs) {
     sh_state->jobs = job;
@@ -174,13 +179,6 @@ void jobs_print_job_status(job_t *job) {
   else if (job == sh_state->jobs_tail->prev)
     active = '-';
 
-  unsigned job_no = 1;
-  for (job_t *j = sh_state->jobs; j; j = j->next) {
-    if (j == job)
-      break;
-    job_no++;
-  }
-
   char *state_str;
   switch (job->state) {
   case JOB_RUNNING:
@@ -203,7 +201,7 @@ void jobs_print_job_status(job_t *job) {
     return;
   }
 
-  printf("[%d] %c %9s %s\n", job_no, active, state_str, job->command);
+  printf("[%zu] %c %9s %s\n", job->id, active, state_str, job->command);
 }
 
 job_t *jobs_last_job() { return shell_state_get()->jobs_tail; }

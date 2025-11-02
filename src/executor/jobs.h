@@ -52,7 +52,7 @@ typedef struct process_t {
 
 // Job: pipeline of processes
 typedef struct job_t {
-  unsigned id;              // Unique job ID
+  size_t id;                // Unique job ID = jobs count at creation
   pid_t pgid;               // Process group ID
   process_t *first_process; // First process in pipeline
   char *command;            // Original command line
