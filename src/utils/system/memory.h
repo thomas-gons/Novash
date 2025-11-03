@@ -21,6 +21,7 @@ void *xmalloc(size_t size);
 void *xcalloc(size_t count, size_t size);
 void *xrealloc(void *ptr, size_t size);
 char *xstrdup(const char *s);
+char *xstrdup_n(const char *s, size_t n);
 int xsnprintf(char *buf, size_t buf_sz, const char *fmt, ...);
 
 #endif // __MEMORY_H__

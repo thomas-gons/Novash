@@ -18,6 +18,7 @@
 #include "history/history.h"
 #include "lexer/lexer.h"
 #include "parser/parser.h"
+#include "expander/expander.h"
 #include "shell/signal.h"
 #include "shell/state.h"
 #include <errno.h>
@@ -29,6 +30,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+
 
 /**
  * @brief Initializes all necessary shell subsystems.

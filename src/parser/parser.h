@@ -14,6 +14,7 @@
 #include "utils/log.h"
 #include "utils/system/memory.h"
 
+
 typedef enum { REDIR_IN, REDIR_OUT, REDIR_APPEND, REDIR_NONE } redirection_e;
 
 /**
@@ -24,6 +25,7 @@ typedef enum { REDIR_IN, REDIR_OUT, REDIR_APPEND, REDIR_NONE } redirection_e;
 typedef struct {
   int fd; /**<  File descriptor to redirect. (0. stdin, 1. stdout, 2. stderr)*/
   redirection_e type;
+  word_part_t *target_parts;
   char *target;
 } redirection_t;
 
@@ -35,6 +37,7 @@ typedef struct {
  * should be freed appropriately.
  */
 typedef struct {
+  word_part_t **argv_parts;
   char **argv; /**<  Argument vector (command and its arguments,
                   NULL-terminated). */
   redirection_t *redir;

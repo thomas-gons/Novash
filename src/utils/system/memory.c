@@ -46,6 +46,15 @@ char *xstrdup(const char *s) {
   return dup;
 }
 
+char *xstrdup_n(const char *s, size_t n) {
+  if (!s)
+    return NULL;
+  char *dup = xmalloc(n + 1);
+  memcpy(dup, s, n);
+  dup[n] = '\0';
+  return dup;
+}
+
 int xsnprintf(char *buf, size_t buf_sz, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);

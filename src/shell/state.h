@@ -19,6 +19,8 @@
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <pwd.h>
 
 // Forward declarations to avoid circular dependencies
 typedef struct job_t job_t;
@@ -50,6 +52,10 @@ typedef struct shell_state_t {
 
   pid_t pgid;
   struct termios shell_tmodes;
+
+  char hostname[256];
+  char username[256];
+  uid_t uid;
 } shell_state_t;
 
 /**
@@ -72,6 +78,13 @@ shell_state_t *shell_state_get();
  * @return char* The value string if found, or NULL if not found.
  */
 char *shell_state_getenv(const char *key);
+
+/**
+ * @brief Constructs and returns the shell prompt string (PS1).
+ * The prompt typically includes the current working directory.
+ * @return char* Dynamically allocated prompt string. Must be freed by caller.
+ */
+char *shell_state_ps1();
 
 /**
  * @brief Regains control of the terminal for the shell process.

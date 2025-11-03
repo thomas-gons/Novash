@@ -92,6 +92,9 @@ set(NOVASH_SOURCES
     # parser
     src/parser/parser.c
 
+    # expander
+    src/expander/expander.c
+
     # builtins
     src/builtin/builtin.c
     src/builtin/history.c

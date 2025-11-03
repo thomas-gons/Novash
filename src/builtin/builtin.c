@@ -28,6 +28,9 @@ int builtin_cd(int argc, char *argv[]) {
   const char *home = shell_state_getenv("HOME");
   char *_path = argv[1];
   int r = chdir(argc == 1 || *_path == '~' ? home : _path);
+  
+  shell_state_t *sh_state = shell_state_get();
+  getcwd(sh_state->cwd, PATH_MAX);
   return r;
 }
 

@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <string.h>
 
+
 static lexer_t *lex;
 
 static int shell_event_hook() {
@@ -70,7 +71,7 @@ int shell_loop() {
   bool warning_exit = false;
   do {
     errno = 0;
-    input = readline("$ ");
+      input = readline(shell_state_ps1());
     if (!input) {
       if (errno == EINTR) {
         // readline was interrupted by a signal, go back to loop immediately
@@ -92,9 +93,12 @@ int shell_loop() {
     lexer_init(lex, input);
 
     ast_node_t *ast_node = parser_create_ast(lex);
-    char *ast_str = parser_ast_str(ast_node, 0);
-    pr_debug("AST:\n%s", ast_str);
-    free(ast_str);
+    expander_expand_ast(ast_node);
+    #if defined (LOG_LEVEL) && LOG_LEVEL >= LOG_LEVEL_DEBUG
+      char *ast_str = parser_ast_str(ast_node, 0);
+      pr_debug("Expanded AST:\n%s", ast_str);
+      free(ast_str);
+    #endif
     history_save_command(lex->input);
     exec_node(ast_node);
     parser_free_ast(ast_node);

@@ -10,8 +10,12 @@
 #define __LEXER_H__
 
 #include "utils/system/memory.h"
+#include "utils/collections.h"
 #include <stdbool.h>
+#include <ctype.h>
 #include <string.h>
+
+#define MAX_TOKEN_SIZE 512
 
 typedef enum {
   TOK_WORD,
@@ -27,6 +31,24 @@ typedef enum {
   TOK_EOF,
 } token_type_e;
 
+typedef enum {
+  WORD_LITERAL,
+  WORD_VARIABLE
+} word_part_type_e;
+
+typedef enum {
+  QUOTE_NONE,
+  QUOTE_SINGLE,
+  QUOTE_DOUBLE
+} quote_context_e;
+
+
+typedef struct {
+  word_part_type_e type;
+  quote_context_e quote;
+  char *value;
+} word_part_t;
+
 /**
  * Token structure representing a lexical token.
  * The value field is a dynamically allocated string for tokens that carry
@@ -35,8 +57,8 @@ typedef enum {
  */
 typedef struct {
   token_type_e type;
-  char *value;
-  size_t raw_length;
+  char *raw_value;
+  word_part_t *parts;
 } token_t;
 
 typedef struct {

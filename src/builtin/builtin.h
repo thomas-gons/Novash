@@ -15,6 +15,7 @@
 #include "utils/system/syscall.h"
 #include "utils/utils.h"
 #include <stdbool.h>
+#include <linux/limits.h>
 
 /* Builtin function type */
 typedef int (*builtin_t)(int argc, char *argv[]);
@@ -36,10 +37,12 @@ int builtin_cd(int argc, char *argv[]);
 int builtin_echo(int argc, char *argv[]);
 int builtin_exit(int argc, char *argv[]);
 int builtin_pwd(int argc, char *argv[]);
+int builtin_type(int argc, char *argv[]);
+
+int builtin_history(int argc, char *argv[]);
+
 int builtin_jobs(int argc, char *argv[]);
 int builtin_fg(int argc, char *argv[]);
 int builtin_bg(int argc, char *argv[]);
-int builtin_history(int argc, char *argv[]);
-int builtin_type(int argc, char *argv[]);
 
 #endif /* NOVASH_BUILTIN_H */

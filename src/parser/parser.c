@@ -8,7 +8,7 @@
 
 #include "parser.h"
 
-static token_t g_tok = {.type = TOK_EOF, .value = NULL};
+static token_t g_tok = {.type = TOK_EOF, .raw_value = NULL, .parts = NULL};
 
 /**
  * @brief Simple wrapper to get the next token from the lexer
@@ -19,6 +19,23 @@ static inline void next_token(lexer_t *lex) {
   g_tok = lexer_next_token(lex);
 }
 
+static word_part_t *duplicate_word_parts(word_part_t *parts) {
+  if (!parts)
+    return NULL;
+
+  word_part_t *dup_parts = NULL;
+  for (int i = 0; i < arrlen(parts); i++) {
+    word_part_t p = parts[i];
+    word_part_t p_dup = {
+        .type = p.type,
+        .quote = p.quote,
+        .value = xstrdup(p.value),
+    };
+    arrpush(dup_parts, p_dup);
+  }
+  return dup_parts;
+}
+
 /**
  * @brief Parse the command and its args
  * Duplicates each argument string into argv_buf, resizing it as needed.
@@ -27,19 +44,15 @@ static inline void next_token(lexer_t *lex) {
  * @param lex            lexer instance.
  * @return Number of parsed arguments (excluding NULL).
  */
-static char **parse_arguments(lexer_t *lex) {
-  char **argv = NULL;
+static word_part_t **parse_arguments(lexer_t *lex) {
+  word_part_t **argv_parts = NULL;
 
   while (g_tok.type == TOK_WORD) {
-    // the global token value is continually overwritten thus we need to
-    // xxstrdup
-    arrpush(argv, xstrdup(g_tok.value));
+    arrpush(argv_parts, duplicate_word_parts(g_tok.parts));
     next_token(lex);
   }
 
-  // ensure argv is NULL-terminated for execvp calls later
-  // resize if necessary
-  return argv;
+  return argv_parts;
 }
 
 /**
@@ -61,7 +74,7 @@ static redirection_t *parse_redirection(lexer_t *lex) {
 
     if (g_tok.type == TOK_FD) {
       // no need to check for errors here as lexer would have handled it
-      r.fd = (int)strtol(g_tok.value, NULL, 10);
+      r.fd = (int)strtol(g_tok.raw_value, NULL, 10);
       next_token(lex);
     }
 
@@ -95,12 +108,13 @@ static redirection_t *parse_redirection(lexer_t *lex) {
     }
 
     // same reason as argv, need to xxstrdup
-    r.target = xstrdup(g_tok.value);
+    r.target_parts = duplicate_word_parts(g_tok.parts);
     arrpush(redir, r);
     next_token(lex);
   }
   return redir;
 }
+
 
 /**
  * @brief Parse a simple command from the lexer
@@ -112,32 +126,26 @@ static ast_node_t *parse_command(lexer_t *lex) {
   if (g_tok.type != TOK_WORD)
     return NULL;
 
-  // will be used to extract the entire raw command string later
-  size_t raw_str_start = lex->pos - strlen(g_tok.value);
-
-  char **argv = parse_arguments(lex);
-
+  size_t start = lex->pos;
+  word_part_t **argv_parts = parse_arguments(lex);
   redirection_t *redir = parse_redirection(lex);
 
-  size_t raw_str_size = lex->pos - raw_str_start;
-  // since the lexer stops on a token outside the command,it must be removed
-  raw_str_size -= g_tok.raw_length;
-  char *raw_str = xmalloc(raw_str_size + 1);
-  memcpy(raw_str, lex->input + raw_str_start, raw_str_size);
-  // strip the trailing space if present
-  if (raw_str[raw_str_size - 1] == ' ') {
-    raw_str[raw_str_size - 1] = '\0';
-  } else {
-    raw_str[raw_str_size] = '\0';
-  }
+  char *raw_str = xmalloc(lex->pos - start + 1);
+  strncpy(raw_str, &lex->input[start], lex->pos - start);
+  raw_str[lex->pos - start] = '\0';
 
   bool is_bg = g_tok.type == TOK_BG;
 
   ast_node_t *ast_node = xmalloc(sizeof(ast_node_t));
-  ast_node->cmd = (cmd_node_t){
-      .argv = argv, .redir = redir, .raw_str = raw_str, .is_bg = is_bg};
-
   ast_node->type = NODE_CMD;
+  ast_node->cmd = (cmd_node_t){
+      .argv_parts = argv_parts,
+      .argv = NULL,
+      .redir = redir,
+      .raw_str = raw_str,
+      .is_bg = is_bg
+  };
+
   return ast_node;
 }
 
@@ -244,12 +252,28 @@ void parser_free_ast(ast_node_t *node) {
   case NODE_CMD: {
     // free all args, redirections, and raw_str
     cmd_node_t cmd = node->cmd;
+    for (int i = 0; i < arrlen(cmd.argv_parts); i++) {
+      for (int j = 0; j < arrlen(cmd.argv_parts[i]); j++) {
+        free(cmd.argv_parts[i][j].value);
+      }
+      arrfree(cmd.argv_parts[i]);
+    }
+    arrfree(cmd.argv_parts);
+    
     for (int i = 0; i < arrlen(cmd.argv); i++) {
       free(cmd.argv[i]);
     }
     arrfree(cmd.argv);
+
     for (int i = 0; i < arrlen(cmd.redir); i++) {
-      free(cmd.redir[i].target);
+      for (int j = 0; j < arrlen(cmd.redir[i].target_parts); j++) {
+        free(cmd.redir[i].target_parts[j].value);
+      }
+      arrfree(cmd.redir[i].target_parts);
+
+      if (cmd.redir[i].target) {
+        free(cmd.redir[i].target);
+      }
     }
     arrfree(cmd.redir);
     free(cmd.raw_str);
@@ -279,79 +303,112 @@ void parser_free_ast(ast_node_t *node) {
   free(node);
 }
 
+static char *raw_part_to_str(word_part_t *part) {
+  char *buf = xmalloc(1024);
+  const char *type_str = (part->type == WORD_LITERAL) ? "LIT" : "VAR";
+  const char *val_str = (part->value) ? part->value : "NULL";
+  int len = snprintf(buf, 1024, "[%s] %s ", type_str, val_str);
+  buf[len] = '\0';
+  return buf;
+}
+
 static void rec_ast(ast_node_t *node, int indent, char ***lines) {
   if (!node)
     return;
 
-  char buf[1024];
+  char buf[2048];
 
   switch (node->type) {
   case NODE_CMD: {
-    // indentation
-    int pos =
-        snprintf(buf, sizeof(buf), "%*sCMD: %s", indent, "", node->cmd.argv[0]);
+    snprintf(buf, sizeof(buf), "%*sCMD:", indent, "");
+    arrpush(*lines, xstrdup(buf));
 
-    // arguments
-    for (int i = 1; i < arrlen(node->cmd.argv); i++)
-      pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, " %s",
-                      node->cmd.argv[i]);
+    // argv / argv_parts
+    if (node->cmd.argv) {
+      snprintf(buf, sizeof(buf), "%*sargv:", indent + 2, "");
+      for (int i = 0; i < arrlen(node->cmd.argv); i++) {
+        char tmp[512];
+        snprintf(tmp, sizeof(tmp), " %s", node->cmd.argv[i]);
+        strcat(buf, tmp);
+      }
+      arrpush(*lines, xstrdup(buf));
+    } else if (node->cmd.argv_parts) {
+      snprintf(buf, sizeof(buf), "%*sargv_parts:", indent + 2, "");
+      arrpush(*lines, xstrdup(buf));
+      for (int i = 0; i < arrlen(node->cmd.argv_parts); i++) {
+        char *s = raw_part_to_str(node->cmd.argv_parts[i]);
+        snprintf(buf, sizeof(buf), "%*s%s", indent + 4, "", s);
+        arrpush(*lines, xstrdup(buf));
+        free(s);
+      }
+      snprintf(buf, sizeof(buf), "%*s", indent + 2, "");
+      arrpush(*lines, xstrdup(buf));
+    }
 
     // redirections
     if (arrlen(node->cmd.redir) > 0) {
-      pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, " [");
       for (int i = 0; i < arrlen(node->cmd.redir); i++) {
         redirection_t r = node->cmd.redir[i];
-        pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "%d", r.fd);
-        switch (r.type) {
-        case REDIR_IN:
-          pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "<");
-          break;
-        case REDIR_OUT:
-          pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, ">");
-          break;
-        case REDIR_APPEND:
-          pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, ">>");
-          break;
-        default:
-          break;
+        const char *redir_op =
+            (r.type == REDIR_IN)     ? "<"
+            : (r.type == REDIR_OUT)  ? ">"
+            : (r.type == REDIR_APPEND) ? ">>"
+                                       : "?";
+        if (r.target) {
+          snprintf(buf, sizeof(buf), "%*s[%d%s %s]", indent + 2, "", r.fd,
+                   redir_op, r.target);
+          arrpush(*lines, xstrdup(buf));
+        } else if (r.target_parts) {
+          snprintf(buf, sizeof(buf), "%*s[%d%s:", indent + 2, "", r.fd,
+                   redir_op);
+          arrpush(*lines, xstrdup(buf));
+          snprintf(buf, sizeof(buf), "%*s[target_parts:", indent + 4, "");
+          arrpush(*lines, xstrdup(buf));
+          for (int j = 0; j < arrlen(r.target_parts); j++) {
+            char *s = raw_part_to_str(&r.target_parts[j]);
+            snprintf(buf, sizeof(buf), "%*s%s", indent + 6, "", s);
+            arrpush(*lines, xstrdup(buf));
+            free(s);
+          }
+          snprintf(buf, sizeof(buf), "%*s]", indent + 4, "");
+          arrpush(*lines, xstrdup(buf));
+          snprintf(buf, sizeof(buf), "%*s]", indent + 2, "");
+          arrpush(*lines, xstrdup(buf));
         }
-        pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "%s", r.target);
-        if (i < arrlen(node->cmd.redir) - 1)
-          pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, ", ");
       }
-      pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "]");
     }
 
-    // background
-    if (node->cmd.is_bg)
-      pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, " &");
+    if (node->cmd.is_bg) {
+      snprintf(buf, sizeof(buf), "%*s&", indent + 2, "");
+      arrpush(*lines, xstrdup(buf));
+    }
 
-    arrpush(*lines, xstrdup(buf));
   } break;
 
   case NODE_PIPELINE:
     snprintf(buf, sizeof(buf), "%*sPIPELINE", indent, "");
     arrpush(*lines, xstrdup(buf));
     for (int i = 0; i < arrlen(node->pipe.nodes); i++)
-      rec_ast(node->pipe.nodes[i], indent + 1, lines);
+      rec_ast(node->pipe.nodes[i], indent + 2, lines);
     break;
 
   case NODE_CONDITIONAL:
     snprintf(buf, sizeof(buf), "%*sCONDITIONAL (%s)", indent, "",
              node->cond.op == COND_AND ? "&&" : "||");
     arrpush(*lines, xstrdup(buf));
-    rec_ast(node->cond.left, indent + 1, lines);
-    rec_ast(node->cond.right, indent + 1, lines);
+    rec_ast(node->cond.left, indent + 2, lines);
+    rec_ast(node->cond.right, indent + 2, lines);
     break;
 
   case NODE_SEQUENCE:
     snprintf(buf, sizeof(buf), "%*sSEQUENCE", indent, "");
     arrpush(*lines, xstrdup(buf));
     for (int i = 0; i < arrlen(node->seq.nodes); i++)
-      rec_ast(node->seq.nodes[i], indent + 1, lines);
+      rec_ast(node->seq.nodes[i], indent + 2, lines);
     break;
   }
 }
+
 
 char *parser_ast_str(ast_node_t *node, int indent) {
   if (!node)

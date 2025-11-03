@@ -66,6 +66,95 @@ char *shell_state_getenv(const char *key) {
   return shget(sh_state->environment, key);
 }
 
+static const char *fg_color_code(char c) {
+    switch (c) {
+        case 'R': return "\033[0;31m";
+        case 'G': return "\033[0;32m";
+        case 'Y': return "\033[0;33m";
+        case 'B': return "\033[0;34m";
+        case 'M': return "\033[0;35m";
+        case 'C': return "\033[0;36m";
+        case 'W': return "\033[0;37m";
+        case 'X': return "\033[1;30m";
+        default: return NULL;
+    }
+}
+
+static const char *bg_color_code(char c) {
+    switch (c) {
+        case 'R': return "\033[0;41m";
+        case 'G': return "\033[0;42m";
+        case 'Y': return "\033[0;43m";
+        case 'B': return "\033[0;44m";
+        case 'M': return "\033[0;45m";
+        case 'C': return "\033[0;46m";
+        case 'W': return "\033[0;47m";
+        case 'X': return "\033[1;40m";
+        default: return NULL;
+    }
+}
+
+char *shell_state_ps1() {
+    char buf[1024];
+    size_t pos = 0;
+    char *cwd = sh_state->cwd;
+    if (strcmp(cwd, shell_state_getenv("HOME")) == 0) cwd = "~";
+
+    for (const char *p = PS1; *p && pos < sizeof(buf) - 1; p++) {
+        if (*p == '\\') {
+            p++;
+            if (*p == 'F' && *(p+1) && *(p+2) && *(p+1)=='G' && *(p+2)=='_') {
+                p += 3;
+                const char *color_code = fg_color_code(*p);
+                if (color_code) pos += snprintf(buf+pos, sizeof(buf)-pos, "\001%s\002", color_code);
+            } else if (*p == 'B' && *(p+1) && *(p+2) && *(p+1)=='G' && *(p+2)=='_') {
+                p += 3;
+                const char *color_code = bg_color_code(*p);
+                if (color_code) pos += snprintf(buf+pos, sizeof(buf)-pos, "\001%s\002", color_code);
+            } else {
+              switch(*p) {
+                case 'u':
+                    pos += (size_t) snprintf(buf + pos, sizeof(buf) - pos, "%s", sh_state->username);
+                    break;
+                case 'h':
+                    pos += (size_t) snprintf(buf + pos, sizeof(buf) - pos, "%s", sh_state->hostname);
+                    break;
+                case 'w': // full cwd
+                    pos += (size_t) snprintf(buf + pos, sizeof(buf) - pos, "%s", cwd);
+                    break;
+                case 'W': { // short cwd (only last part)
+                    const char *base = strrchr(cwd, '/');
+                    base = (base && *(base + 1)) ? base + 1 : cwd;
+                    pos += (size_t) snprintf(buf + pos, sizeof(buf) - pos, "%s", base);
+                    break;
+                }
+                case 't': {
+                    time_t now = time(NULL);
+                    struct tm *tm = localtime(&now);
+                    pos += (size_t) strftime(buf + pos, sizeof(buf) - pos, "%H:%M:%S", tm);
+                    break;
+                }
+                case '$':
+                    pos += (size_t) snprintf(buf + pos, sizeof(buf) - pos,
+                                    (sh_state->uid == 0) ? "#" : "$");
+                    break;
+                
+                case 'n':
+                    buf[pos++] = '\n';
+                    break;
+                default:
+                    buf[pos++] = *p;
+              }
+            }
+        } else {
+            buf[pos++] = *p;
+        }
+    }
+    
+    buf[pos] = '\0';
+    return strdup(buf);
+}
+
 void shell_state_init() {
   sh_state = xmalloc(sizeof(shell_state_t));
   sh_state->environment = NULL;
@@ -83,6 +172,15 @@ void shell_state_init() {
   sh_state->jobs_tail = NULL;
   sh_state->running_jobs_count = 0;
 
+  sh_state->hostname[0] = '\0';
+  gethostname(sh_state->hostname, sizeof(sh_state->hostname));
+  sh_state->username[0] = '\0';
+  struct passwd *pw = getpwuid(getuid());
+  if (pw) {
+      strncpy(sh_state->username, pw->pw_name, sizeof(sh_state->username) - 1);
+      sh_state->username[sizeof(sh_state->username) - 1] = '\0';
+  }
+  sh_state->uid = getuid();
   init_environment();
   history_init();
   history_load();
