@@ -21,6 +21,7 @@
 #include "expander/expander.h"
 #include "shell/signal.h"
 #include "shell/state.h"
+#include "prompt/ps1.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <readline/history.h>

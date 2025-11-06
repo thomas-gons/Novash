@@ -79,12 +79,6 @@ shell_state_t *shell_state_get();
  */
 char *shell_state_getenv(const char *key);
 
-/**
- * @brief Constructs and returns the shell prompt string (PS1).
- * The prompt typically includes the current working directory.
- * @return char* Dynamically allocated prompt string. Must be freed by caller.
- */
-char *shell_state_ps1();
 
 /**
  * @brief Regains control of the terminal for the shell process.

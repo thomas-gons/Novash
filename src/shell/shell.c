@@ -71,7 +71,7 @@ int shell_loop() {
   bool warning_exit = false;
   do {
     errno = 0;
-      input = readline(shell_state_ps1());
+      input = readline(prompt_build_ps1());
     if (!input) {
       if (errno == EINTR) {
         // readline was interrupted by a signal, go back to loop immediately

@@ -112,6 +112,9 @@ set(NOVASH_SOURCES
     src/shell/state.c
     src/shell/signal.c
 
+    # prompt
+    src/prompt/ps1.c
+
     # utils
     src/utils/system/syscall.c
     src/utils/system/memory.c

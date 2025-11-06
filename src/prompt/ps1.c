@@ -1,0 +1,154 @@
+#include "ps1.h"
+
+const PS1_block_t PS1_blocks[] = {
+    { .text = "\\u@\\h", .leading = NULL, .trailing = TRAILING_DIAMOND, .color = { .fg = NULL, .bg = BG_COLOR_BLUE } },
+    { .text = "\\W",     .leading = NULL, .trailing = TRAILING_DIAMOND, .color = { .fg = NULL, .bg = BG_COLOR_GREEN } },
+    { .text = NULL }
+};
+
+
+static int extract_code(const char *seq) {
+    if (!seq) return -1;
+    int code = -1;
+    sscanf(seq, "\033[%dm", &code);
+    return code;
+}
+
+static inline char *get_reverse_color(const char *color) {
+    if (!color) return NULL;
+
+    int code = extract_code(color);
+    if (code < 0) return xstrdup(color);
+
+    // If foreground (30–37 or 90–97), convert into background (40–47 or 100–107)
+    if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
+        code += 10;
+    }
+    // If background (40–47 or 100–107), convert into foreground (30–37 or 90–97)
+    else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107)) {
+        code -= 10;
+    }
+
+    char *result = xmalloc(16);
+    snprintf(result, 16, "\033[%dm", code);
+    return result;
+}
+
+static char *make_ansi_color(const char *fg, const char *bg) {
+    int fg_code = extract_code(fg);
+    int bg_code = extract_code(bg);
+
+    char buf[32];
+
+    if (fg_code != -1 && bg_code != -1)
+        snprintf(buf, sizeof(buf), "\033[%d;%dm", fg_code, bg_code);
+    else if (fg_code != -1)
+        snprintf(buf, sizeof(buf), "\033[%dm", fg_code);
+    else if (bg_code != -1)
+        snprintf(buf, sizeof(buf), "\033[%dm", bg_code);
+    else
+        buf[0] = '\0';
+
+    return xstrdup(buf);
+}
+
+static size_t ps1_apply_color(char *dst, size_t max, const char *text, PS1_color_t color, bool reverse) {
+    const char *fg = (reverse) ? get_reverse_color(color.fg) : color.fg;
+    const char *bg = (reverse) ? get_reverse_color(color.bg) : color.bg;
+    
+    const char *ansi_color = make_ansi_color(fg, bg);
+
+    size_t n = (size_t) snprintf(dst, max, "%s%s%s", ansi_color, text, COLOR_RESET);
+    free((void*)ansi_color);
+    return n;
+}
+
+static char *ps1_handle_text(const char *text) {
+    shell_state_t *sh_state = shell_state_get();
+    char output[1024];
+    size_t pos = 0;
+    char c = *text;
+    while (c != '\0') {
+      if (c == '\\') {
+          text++;
+          c = *text;
+          switch (c) {
+              case 'u':
+                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", sh_state->username);
+                  break;
+              case 'h':
+                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", sh_state->hostname);
+                  break;
+              case 'w':
+                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", sh_state->cwd);
+                  break;
+              case 'W':
+                  {
+                      const char *cwd = sh_state->cwd;
+                      const char *last_slash = strrchr(cwd, '/');
+                      if (last_slash && *(last_slash + 1) != '\0') {
+                          pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", last_slash + 1);
+                      } else {
+                          pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "/");
+                      }
+                  }
+                  break;
+              case '$':
+                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", (sh_state->uid == 0) ? "# " : "$ ");
+                  break;
+              default:
+                  fprintf(stderr, "Unknown PS1 escape sequence: \\%c\n", c);
+                  break;
+          }
+      } else {
+          output[pos++] = c;
+      }
+      text++;
+      c = *text;
+    }
+  output[pos] = '\0';
+  return xstrdup(output);
+}
+
+char *prompt_build_ps1() {
+    char buf[1024];
+    size_t pos = 0;
+
+    bool should_reverse = false;
+    for (size_t i = 0; PS1_blocks[i].text != NULL; i++) {
+        const PS1_block_t *b = &PS1_blocks[i];
+
+        // Leading
+        char *leading = (char*) b->leading;
+        if (leading == NULL) leading = " ";
+        else should_reverse = true;
+
+        pos += ps1_apply_color(buf + pos, sizeof(buf) - pos, leading, b->color, should_reverse);
+
+        // Text body
+        should_reverse = false;
+        char *txt = ps1_handle_text(b->text);
+        pos += ps1_apply_color(buf + pos, sizeof(buf) - pos, txt, b->color, false);
+
+        // Trailing
+        char *trailing = (char*) b->trailing;
+        PS1_color_t trailing_color = b->color;
+        if (trailing == NULL) {
+            trailing = " ";
+        } else {
+            trailing_color.fg = get_reverse_color(b->color.bg);
+            if (PS1_blocks[i + 1].text != NULL) {
+                trailing_color.bg = PS1_blocks[i + 1].color.bg;
+            } else {
+                trailing_color.bg = NULL;
+            }
+        }
+        pos += ps1_apply_color(buf + pos, sizeof(buf) - pos, trailing, trailing_color, should_reverse);
+        free(txt);
+    }
+
+    // Final space to separate prompt from command
+    buf[pos++] = ' ';
+    buf[pos] = '\0';
+    return xstrdup(buf);
+}
