@@ -13,7 +13,7 @@ int main() {
   if (shell_init() != 0) {
     return EXIT_FAILURE;
   }
-
+  
   int exit_code = shell_loop();
   shell_cleanup();
 

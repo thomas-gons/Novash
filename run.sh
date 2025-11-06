@@ -101,5 +101,7 @@ if [[ "$RUN_TESTS" = true ]]; then
     exit 0
 fi
 
+set -e
+
 # Run the shell
 "$BUILD_PATH/$EXE"

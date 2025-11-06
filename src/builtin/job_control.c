@@ -14,8 +14,8 @@
 #include "executor/jobs.h"
 
 int builtin_jobs(int argc, char *argv[]) {
-  shell_state_t *sh_state = shell_state_get();
-  job_t *job = sh_state->jobs;
+  shell_jobs_t *sh_jobs = shell_state_get_jobs();
+  job_t *job = sh_jobs->jobs;
   while (job) {
     jobs_print_job_status(job);
     job = job->next;
@@ -86,7 +86,7 @@ static inline job_t *find_target_job_bg(job_t *tail, size_t job_id) {
 }
 
 int builtin_bg(int argc, char *argv[]) {
-  shell_state_t *sh_state = shell_state_get();
+  shell_jobs_t *sh_jobs = shell_state_get_jobs();
 
   size_t *job_ids;
   if (argc > 1) {
@@ -103,7 +103,7 @@ int builtin_bg(int argc, char *argv[]) {
   for (size_t i = 0; i < jobs_to_process; i++) {
     size_t job_id = job_ids[i];
 
-    job = find_target_job_bg(sh_state->jobs_tail, job_id);
+    job = find_target_job_bg(sh_jobs->jobs_tail, job_id);
 
     if (!job) {
       fprintf(stderr, "bg: no stopped job\n");
@@ -114,7 +114,7 @@ int builtin_bg(int argc, char *argv[]) {
     job->is_background = true;
     jobs_print_job_status(job);
     job->state = JOB_RUNNING;
-    sh_state->running_jobs_count++;
+    sh_jobs->running_jobs_count++;
   }
 
   free(job_ids);
@@ -122,7 +122,7 @@ int builtin_bg(int argc, char *argv[]) {
 }
 
 int builtin_fg(int argc, char *argv[]) {
-  shell_state_t *sh_state = shell_state_get();
+  shell_jobs_t *sh_jobs = shell_state_get_jobs();
   size_t *job_ids;
   if (argc > 1) {
     job_ids = retrieve_arg_job_ids("fg", argc, argv);
@@ -138,7 +138,7 @@ int builtin_fg(int argc, char *argv[]) {
   job_t *job;
   for (size_t i = 0; i < jobs_to_process; i++) {
     size_t job_id = job_ids[i];
-    job = find_target_job_fg(sh_state->jobs_tail, job_id);
+    job = find_target_job_fg(sh_jobs->jobs_tail, job_id);
     if (!job) {
       fprintf(stderr, "fg: no stopped job\n");
       return 1;
@@ -152,7 +152,7 @@ int builtin_fg(int argc, char *argv[]) {
       jobs_mark_job_continued(job);
       jobs_print_job_status(job);
       job->state = JOB_RUNNING;
-      sh_state->running_jobs_count++;
+      sh_jobs->running_jobs_count++;
     } 
     // Job was running in background, just bring to foreground
     else {

@@ -24,10 +24,10 @@
 #include "prompt/ps1.h"
 #include <errno.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <readline/history.h>
 #include <readline/readline.h>
 #include <signal.h>
-#include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>

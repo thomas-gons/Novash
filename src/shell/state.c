@@ -55,7 +55,7 @@ static void init_environment() {
   // --- HISTFILE ---
   char hist_file_buf[PATH_MAX];
   int hist_file_len =
-      snprintf(hist_file_buf, PATH_MAX, "%s/%s", sh_state->cwd, HIST_FILENAME);
+      snprintf(hist_file_buf, PATH_MAX, "%s/%s", sh_state->identity.cwd, HIST_FILENAME);
 
   if (hist_file_len > 0 && hist_file_len < PATH_MAX) {
     shput(sh_state->environment, xstrdup("HISTFILE"), xstrdup(hist_file_buf));
@@ -66,35 +66,114 @@ char *shell_state_getenv(const char *key) {
   return shget(sh_state->environment, key);
 }
 
+static void init_shell_identity() {
+  shell_identity_t identity = {0};
+  char cwd_buf[PATH_MAX];
+  getcwd(cwd_buf, sizeof(cwd_buf));
+	cwd_buf[sizeof(cwd_buf) - 1] = '\0';
+	identity.cwd = xstrdup(cwd_buf);
+
+  identity.hostname[0] = '\0';
+  gethostname(identity.hostname, sizeof(identity.hostname));
+
+  identity.username[0] = '\0';
+  struct passwd *pw = getpwuid(getuid());
+  if (pw) {
+      strncpy(identity.username, pw->pw_name, sizeof(identity.username) - 1);
+      identity.username[sizeof(identity.username) - 1] = '\0';
+  }
+
+  identity.uid = getuid();
+  identity.gid = getgid();
+  identity.pid = getpid();
+  identity.pgid = getpgrp();
+
+  sh_state->identity = identity;
+}
+
+static void init_shell_jobs() {
+	shell_jobs_t sh_jobs = {0};
+	sh_jobs.jobs = NULL;
+	sh_jobs.jobs_tail = NULL;
+	sh_jobs.jobs_count = 0;
+	sh_jobs.running_jobs_count = 0;
+	sh_state->jobs = sh_jobs;
+}
+
+static void init_shell_last_exec() {
+	shell_last_exec_t last_exec = {0};
+	last_exec.exit_status = 0;
+	last_exec.bg_pid = 0;
+	last_exec.duration_ms = 0.0;
+	last_exec.command = NULL;
+	last_exec.started_at = (struct timespec){0};
+	last_exec.ended_at = (struct timespec){0};
+	sh_state->last_exec = last_exec;
+}
+
 void shell_state_init() {
   sh_state = xmalloc(sizeof(shell_state_t));
   sh_state->environment = NULL;
+  sh_state->flags.interactive = isatty(STDIN_FILENO);
+  sh_state->flags.job_control = sh_state->flags.interactive;
+  sh_state->flags.history_enabled = true;
+#if defined (LOG_LEVEL) && LOG_LEVEL >= LOG_LEVEL_DEBUG
+  sh_state->flags.debug = true;
+#else
+  sh_state->flags.debug = false;
+#endif
 
-  char cwd_buf[PATH_MAX];
-  getcwd(cwd_buf, sizeof(cwd_buf));
-  sh_state->cwd = xstrdup(cwd_buf);
-  sh_state->last_fg_cmd = NULL;
-  sh_state->last_exit_status = 0;
   sh_state->should_exit = false;
-
+	
+  init_shell_identity();
+	
   sh_state->hist = xmalloc(sizeof(history_t));
-  sh_state->jobs_count = 0;
-  sh_state->jobs = NULL;
-  sh_state->jobs_tail = NULL;
-  sh_state->running_jobs_count = 0;
-
-  sh_state->hostname[0] = '\0';
-  gethostname(sh_state->hostname, sizeof(sh_state->hostname));
-  sh_state->username[0] = '\0';
-  struct passwd *pw = getpwuid(getuid());
-  if (pw) {
-      strncpy(sh_state->username, pw->pw_name, sizeof(sh_state->username) - 1);
-      sh_state->username[sizeof(sh_state->username) - 1] = '\0';
-  }
-  sh_state->uid = getuid();
+  init_shell_jobs();
+  init_shell_last_exec();
+	
   init_environment();
   history_init();
   history_load();
+}
+
+shell_identity_t *shell_state_get_identity() {
+	return &sh_state->identity;
+}
+
+shell_jobs_t *shell_state_get_jobs() {
+	return &sh_state->jobs;
+}
+
+shell_last_exec_t *shell_state_get_last_exec() {
+	return &sh_state->last_exec;
+}
+
+void shell_reset_last_exec() {
+  shell_last_exec_t *last_exec = &sh_state->last_exec;
+  if (last_exec->command) {
+    free(last_exec->command);
+    last_exec->command = NULL;
+  }
+  
+  last_exec->exit_status = 0;
+  last_exec->bg_pid = 0;
+  last_exec->duration_ms = 0.0;
+  last_exec->started_at = (struct timespec){0};
+  last_exec->ended_at = (struct timespec){0};
+}
+
+char *shell_state_get_flags(void) {
+    shell_state_t *sh = shell_state_get();
+    char buf[8];  // assez pour 4-5 flags + '\0'
+    size_t pos = 0;
+
+    if (sh->flags.interactive)     buf[pos++] = 'i';
+    if (sh->flags.job_control)     buf[pos++] = 'm';
+    if (sh->flags.history_enabled) buf[pos++] = 'h';
+    if (sh->flags.debug)           buf[pos++] = 'd';
+
+    buf[pos] = '\0';
+    return xstrdup(buf);
 }
 
 void shell_regain_control() {
@@ -113,7 +192,8 @@ void shell_state_free() {
   }
   shfree(sh_state->environment);
 
-  free(sh_state->cwd);
+  free(sh_state->identity.cwd);
+  shell_reset_last_exec();
   history_free();
   jobs_free();
 

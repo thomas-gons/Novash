@@ -57,6 +57,10 @@ static size_t ps1_apply_color(char *dst, size_t max, const char *text, PS1_color
     const char *bg = (reverse) ? get_reverse_color(color.bg) : color.bg;
     
     const char *ansi_color = make_ansi_color(fg, bg);
+    if (reverse) {
+        free((void*)fg);
+        free((void*)bg);
+    }
 
     size_t n = (size_t) snprintf(dst, max, "%s%s%s", ansi_color, text, COLOR_RESET);
     free((void*)ansi_color);
@@ -64,7 +68,7 @@ static size_t ps1_apply_color(char *dst, size_t max, const char *text, PS1_color
 }
 
 static char *ps1_handle_text(const char *text) {
-    shell_state_t *sh_state = shell_state_get();
+    shell_identity_t sh_identity = shell_state_get()->identity;
     char output[1024];
     size_t pos = 0;
     char c = *text;
@@ -74,17 +78,17 @@ static char *ps1_handle_text(const char *text) {
           c = *text;
           switch (c) {
               case 'u':
-                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", sh_state->username);
+                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", sh_identity.username);
                   break;
               case 'h':
-                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", sh_state->hostname);
+                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", sh_identity.hostname);
                   break;
               case 'w':
-                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", sh_state->cwd);
+                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", sh_identity.cwd);
                   break;
               case 'W':
                   {
-                      const char *cwd = sh_state->cwd;
+                      const char *cwd = sh_identity.cwd;
                       const char *last_slash = strrchr(cwd, '/');
                       if (last_slash && *(last_slash + 1) != '\0') {
                           pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", last_slash + 1);
@@ -94,7 +98,7 @@ static char *ps1_handle_text(const char *text) {
                   }
                   break;
               case '$':
-                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", (sh_state->uid == 0) ? "# " : "$ ");
+                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", (sh_identity.uid == 0) ? "# " : "$ ");
                   break;
               default:
                   fprintf(stderr, "Unknown PS1 escape sequence: \\%c\n", c);
@@ -111,7 +115,7 @@ static char *ps1_handle_text(const char *text) {
 }
 
 char *prompt_build_ps1() {
-    char buf[1024];
+    char buf[1024] = {0};
     size_t pos = 0;
 
     bool should_reverse = false;
@@ -144,6 +148,9 @@ char *prompt_build_ps1() {
             }
         }
         pos += ps1_apply_color(buf + pos, sizeof(buf) - pos, trailing, trailing_color, should_reverse);
+        if (b->trailing != NULL) {
+            free((void*)trailing_color.fg);
+        }
         free(txt);
     }
 

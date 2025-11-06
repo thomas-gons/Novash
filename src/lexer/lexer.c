@@ -48,7 +48,9 @@ void lexer_free_token(token_t *tok) {
 #define peek(lex) ((lex)->pos < (lex)->length ? (lex)->input[(lex)->pos] : '\0')
 #define advance(lex) ((lex)->pos < (lex)->length ? (lex)->input[(lex)->pos++] : '\0')
 #define ismeta_char(c) ((c) == '|' || (c) == '&' || (c) == ';' || (c) == '<' || (c) == '>')
+#define isshell_var(c) ((c) == '?' || (c) == '$' || (c) == '!' || (c) == '-')
 #define isword_char(c) (!(isspace(c) || ismeta_char(c) || (c) == '\0'))
+
 
 static inline void skip_whitespaces(lexer_t *lex) {
   char c;
@@ -88,8 +90,15 @@ static char *handle_literal(lexer_t *lex, quote_context_e quote_ctx) {
 
 static char *handle_variable_name(lexer_t *lex) {
   size_t start = lex->pos;
-  while (isalnum(peek(lex)) || peek(lex) == '_')
+  if (isshell_var(peek(lex))) {
     advance(lex);
+    size_t len = lex->pos - start;
+    return xstrdup_n(&lex->input[start], len);
+  }
+  
+  while (isalnum(peek(lex)) || peek(lex) == '_') {
+    advance(lex);
+  }
   size_t len = lex->pos - start;
 
   if (len == 0)

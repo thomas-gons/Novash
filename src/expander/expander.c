@@ -1,6 +1,32 @@
 #include "expander.h"
 
 
+static char *handle_special_parameters(const char *param) {
+    shell_state_t *sh_state = shell_state_get();
+    shell_last_exec_t *last_exec = &sh_state->last_exec;
+    switch (param[0]) {
+        case '?': {
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d", last_exec->exit_status);
+            return xstrdup(buf);
+        }
+        case '$': {
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d", sh_state->identity.pid);
+            return xstrdup(buf);
+        };
+        case '!': {
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d", last_exec->bg_pid);
+            return xstrdup(buf);
+        };
+        case '-': {
+            return shell_state_get_flags();
+        };
+        default: return NULL;
+    }
+}
+
 static void expander_expand_cmd(ast_node_t *node) {
     if (node->cmd.argv_parts) {
         // Expand argv_parts into argv
@@ -12,7 +38,10 @@ static void expander_expand_cmd(ast_node_t *node) {
                 if (part.type == WORD_LITERAL) {
                     arrpush(node->cmd.argv, xstrdup(part.value));
                 } else if (part.type == WORD_VARIABLE) {
-                    char *expanded = shell_state_getenv(part.value);
+                    char *expanded = handle_special_parameters(part.value);
+                    if (!expanded) {
+                        expanded = shell_state_getenv(part.value);
+                    }
                     if (expanded) {
                         arrpush(node->cmd.argv, expanded);
                     }

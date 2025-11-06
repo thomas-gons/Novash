@@ -31,31 +31,58 @@ typedef struct {
   char *value;
 } env_var_t;
 
+typedef struct {
+    char *command;
+    int exit_status;
+    pid_t bg_pid;
+    pid_t pgid;
+    double duration_ms;
+    struct timespec started_at;
+    struct timespec ended_at;
+} shell_last_exec_t;
+
+typedef struct {
+  bool interactive;
+  bool job_control;
+  bool history_enabled;
+  bool debug;
+} shell_flags_t;
+
+typedef struct {
+    char hostname[256];  
+    char username[256];  
+    uid_t uid;          
+    gid_t gid;           
+    pid_t pid;           
+    pid_t pgid;          
+    char *cwd;
+} shell_identity_t;
+
+typedef struct {
+    job_t *jobs;
+    job_t *jobs_tail;
+    size_t jobs_count;
+    size_t running_jobs_count;
+} shell_jobs_t;
+
 /**
  * @brief Main structure holding the global state of the Novash shell.
  * This singleton structure is accessed throughout the program via
  * shell_state_get().
  */
 typedef struct shell_state_t {
+  shell_identity_t identity;
   env_var_t *environment;
 
-  char *cwd;
-  char *last_fg_cmd;
-  int last_exit_status;
+  shell_last_exec_t last_exec;
+  
+  history_t *hist;
+  shell_jobs_t jobs;
+  
+  shell_flags_t flags;
+  struct termios shell_tmodes;
   bool should_exit;
 
-  history_t *hist;
-  job_t *jobs;
-  job_t *jobs_tail;
-  size_t jobs_count;
-  size_t running_jobs_count;
-
-  pid_t pgid;
-  struct termios shell_tmodes;
-
-  char hostname[256];
-  char username[256];
-  uid_t uid;
 } shell_state_t;
 
 /**
@@ -80,6 +107,11 @@ shell_state_t *shell_state_get();
 char *shell_state_getenv(const char *key);
 
 
+shell_identity_t *shell_state_get_identity();
+shell_jobs_t *shell_state_get_jobs();
+shell_last_exec_t *shell_state_get_last_exec();
+char *shell_state_get_flags(void);
+
 /**
  * @brief Regains control of the terminal for the shell process.
  * This is typically called after a foreground job has completed or stopped.
@@ -90,5 +122,7 @@ void shell_regain_control();
  * This includes the environment hashmap, history, jobs, and cwd.
  */
 void shell_state_free();
+
+void shell_reset_last_exec();
 
 #endif // __STATE_H__

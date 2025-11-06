@@ -90,12 +90,12 @@ job_t *jobs_new_job() {
 
 // --- Job list management with doubly-linked list ---
 void jobs_add_job(job_t *job) {
-  shell_state_t *sh_state = shell_state_get();
+  shell_jobs_t *sh_jobs = shell_state_get_jobs();
   job->next = NULL;
-  job->prev = sh_state->jobs_tail;
+  job->prev = sh_jobs->jobs_tail;
 
   size_t new_id = 1;
-  for (job_t *j = sh_state->jobs; j != NULL; j = j->next) {
+  for (job_t *j = sh_jobs->jobs; j != NULL; j = j->next) {
     if (j->id >= new_id + 1) {
       break;
     }
@@ -103,18 +103,18 @@ void jobs_add_job(job_t *job) {
   }
   job->id = new_id;
 
-  if (!sh_state->jobs) {
-    sh_state->jobs = job;
+  if (!sh_jobs->jobs) {
+    sh_jobs->jobs = job;
   } else {
-    sh_state->jobs_tail->next = job;
+    sh_jobs->jobs_tail->next = job;
   }
-  sh_state->jobs_tail = job;
-  sh_state->jobs_count++;
-  sh_state->running_jobs_count++;
+  sh_jobs->jobs_tail = job;
+  sh_jobs->jobs_count++;
+  sh_jobs->running_jobs_count++;
 }
 
 bool jobs_remove_job(pid_t pgid) {
-  shell_state_t *sh_state = shell_state_get();
+  shell_jobs_t *sh_jobs = shell_state_get_jobs();
   job_t *job = jobs_find_job_by_pgid(pgid);
   if (!job)
     return false;
@@ -122,16 +122,16 @@ bool jobs_remove_job(pid_t pgid) {
   if (job->prev)
     job->prev->next = job->next;
   else
-    sh_state->jobs = job->next;
+    sh_jobs->jobs = job->next;
 
   if (job->next)
     job->next->prev = job->prev;
   else
-    sh_state->jobs_tail = job->prev;
+    sh_jobs->jobs_tail = job->prev;
 
-  sh_state->jobs_count--;
+  sh_jobs->jobs_count--;
   if (job->state != JOB_STOPPED) {
-    sh_state->running_jobs_count--;
+    sh_jobs->running_jobs_count--;
   }
   jobs_free_job(job, true);
   return true;
@@ -156,27 +156,27 @@ void jobs_free_job(job_t *job, bool deep_free) {
 }
 
 void jobs_free() {
-  shell_state_t *sh_state = shell_state_get();
-  job_t *job = sh_state->jobs;
+  shell_jobs_t *sh_jobs = shell_state_get_jobs();
+  job_t *job = sh_jobs->jobs;
 
   while (job) {
     job_t *next = job->next;
     jobs_free_job(job, true);
     job = next;
   }
-  sh_state->jobs = NULL;
-  sh_state->jobs_tail = NULL;
-  sh_state->jobs_count = 0;
-  sh_state->running_jobs_count = 0;
+  sh_jobs->jobs = NULL;
+  sh_jobs->jobs_tail = NULL;
+  sh_jobs->jobs_count = 0;
+  sh_jobs->running_jobs_count = 0;
 }
 
 void jobs_print_job_status(job_t *job) {
-  shell_state_t *sh_state = shell_state_get();
+  shell_jobs_t *sh_jobs = shell_state_get_jobs();
 
   char active = ' ';
-  if (job == sh_state->jobs_tail)
+  if (job == sh_jobs->jobs_tail)
     active = '+';
-  else if (job == sh_state->jobs_tail->prev)
+  else if (job == sh_jobs->jobs_tail->prev)
     active = '-';
 
   char *state_str;
@@ -204,15 +204,15 @@ void jobs_print_job_status(job_t *job) {
   printf("[%zu] %c %9s %s\n", job->id, active, state_str, job->command);
 }
 
-job_t *jobs_last_job() { return shell_state_get()->jobs_tail; }
+job_t *jobs_last_job() { return shell_state_get_jobs()->jobs_tail; }
 
 job_t *jobs_second_last_job() {
-  job_t *tail = shell_state_get()->jobs_tail;
+  job_t *tail = shell_state_get_jobs()->jobs_tail;
   return tail ? tail->prev : NULL;
 }
 
 job_t *jobs_find_job_by_pgid(pid_t pgid) {
-  for (job_t *job = shell_state_get()->jobs_tail; job; job = job->prev) {
+  for (job_t *job = shell_state_get_jobs()->jobs_tail; job; job = job->prev) {
     if (job->pgid == pgid)
       return job;
   }
@@ -220,7 +220,7 @@ job_t *jobs_find_job_by_pgid(pid_t pgid) {
 }
 
 process_t *jobs_find_process_by_pid(pid_t pid) {
-  for (job_t *job = shell_state_get()->jobs_tail; job; job = job->prev) {
+  for (job_t *job = shell_state_get_jobs()->jobs_tail; job; job = job->prev) {
     for (process_t *p = job->first_process; p; p = p->next) {
       if (p->pid == pid)
         return p;
@@ -238,7 +238,7 @@ void jobs_mark_job_stopped(job_t *job) {
 
   jobs_print_job_status(job);
 
-  shell_state_get()->running_jobs_count--;
+  shell_state_get_jobs()->running_jobs_count--;
 }
 
 void jobs_mark_job_continued(job_t *job) {

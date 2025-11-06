@@ -30,7 +30,7 @@ int builtin_cd(int argc, char *argv[]) {
   int r = chdir(argc == 1 || *_path == '~' ? home : _path);
   
   shell_state_t *sh_state = shell_state_get();
-  getcwd(sh_state->cwd, PATH_MAX);
+  getcwd(sh_state->identity.cwd, PATH_MAX);
   return r;
 }
 
@@ -50,7 +50,7 @@ int builtin_exit(int argc, char *argv[]) {
 
 int builtin_pwd(int argc, char *argv[]) {
   shell_state_t *sh_state = shell_state_get();
-  printf("%s\n", sh_state->cwd);
+  printf("%s\n", sh_state->identity.cwd);
   return 0;
 }
 

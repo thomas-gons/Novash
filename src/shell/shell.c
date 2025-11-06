@@ -20,9 +20,12 @@ static int shell_event_hook() {
   return 0;
 }
 
+
+
 int shell_init() {
   // Initialize shell state early so signal handlers can safely access it.
   shell_state_init();
+  shell_state_t *sh_state = shell_state_get();
   builtin_init();
   signal(SIGTTOU, SIG_IGN);
   signal(SIGTTIN, SIG_IGN);
@@ -30,7 +33,7 @@ int shell_init() {
   // create lexer after state init
   lex = lexer_new();
   // Only try to take terminal control if stdin is a TTY
-  if (isatty(STDIN_FILENO)) {
+  if (sh_state->flags.interactive) {
     // Put shell in its own process group
     if (setpgid(0, 0) == -1) {
       if (errno != EACCES && errno != EINVAL && errno != EPERM) {
@@ -38,13 +41,11 @@ int shell_init() {
         return 1;
       }
     }
-
-    shell_state_t *sh_state = shell_state_get();
-    sh_state->pgid = getpgrp();
-    xtcsetpgrp(STDIN_FILENO, sh_state->pgid);
-
-    sh_state->shell_tmodes = (struct termios){0};
-    xtcgetattr(STDIN_FILENO, &sh_state->shell_tmodes);
+    xtcsetpgrp(STDIN_FILENO, sh_state->identity.pgid);
+    
+    tcgetattr(STDIN_FILENO, &sh_state->shell_tmodes);
+    sh_state->shell_tmodes.c_lflag |= (ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &sh_state->shell_tmodes);
     
   } else {
     fprintf(stderr, "warning: stdin is not a TTY, job control disabled\n");
@@ -63,15 +64,23 @@ void shell_cleanup() {
   shell_state_free();
 }
 
+
+#include <locale.h>
+
+
 int shell_loop() {
+  setlocale(LC_CTYPE, "");
   shell_state_t *sh_state = shell_state_get();
   char *input = NULL;
+  char *prompt = NULL;
 
-  // Flag to track if an exit warning for running jobs has been given
   bool warning_exit = false;
   do {
     errno = 0;
-      input = readline(prompt_build_ps1());
+    prompt = prompt_build_ps1();
+    input = readline(prompt);
+    free(prompt);
+    
     if (!input) {
       if (errno == EINTR) {
         // readline was interrupted by a signal, go back to loop immediately
@@ -79,7 +88,7 @@ int shell_loop() {
       }
 
       // EOF (Ctrl+D)
-      if (sh_state->running_jobs_count > 0 && !warning_exit) {
+      if (sh_state->jobs.running_jobs_count > 0 && !warning_exit) {
         printf("you have running jobs\n");
         warning_exit = true;
         continue;
@@ -88,6 +97,7 @@ int shell_loop() {
         break;
       }
     }
+
 
     warning_exit = false;
     lexer_init(lex, input);
