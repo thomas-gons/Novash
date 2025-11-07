@@ -68,50 +68,43 @@ static size_t ps1_apply_color(char *dst, size_t max, const char *text, PS1_color
 }
 
 static char *ps1_handle_text(const char *text) {
-    shell_identity_t sh_identity = shell_state_get()->identity;
+    shell_identity_t *sh_identity = shell_state_get_identity();
     char output[1024];
     size_t pos = 0;
-    char c = *text;
-    while (c != '\0') {
-      if (c == '\\') {
-          text++;
-          c = *text;
-          switch (c) {
-              case 'u':
-                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", sh_identity.username);
-                  break;
-              case 'h':
-                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", sh_identity.hostname);
-                  break;
-              case 'w':
-                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", sh_identity.cwd);
-                  break;
-              case 'W':
-                  {
-                      const char *cwd = sh_identity.cwd;
-                      const char *last_slash = strrchr(cwd, '/');
-                      if (last_slash && *(last_slash + 1) != '\0') {
-                          pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", last_slash + 1);
-                      } else {
-                          pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "/");
-                      }
-                  }
-                  break;
-              case '$':
-                  pos += (size_t) snprintf(output + pos, sizeof(output) - pos, "%s", (sh_identity.uid == 0) ? "# " : "$ ");
-                  break;
-              default:
-                  fprintf(stderr, "Unknown PS1 escape sequence: \\%c\n", c);
-                  break;
-          }
-      } else {
-          output[pos++] = c;
-      }
-      text++;
-      c = *text;
+    while (*text && pos < sizeof(output) - 1) {
+        if (*text == '\\') {
+            text++;
+            if (!*text) break;
+            const char *rep = NULL;
+            switch (*text) {
+                case 'u': rep = sh_identity->username; break;
+                case 'h': rep = sh_identity->hostname; break;
+                case 'w': rep = sh_identity->cwd; break;
+                case 'W': {
+                    const char *cwd = sh_identity->cwd;
+                    const char *last = strrchr(cwd, '/');
+                    rep = (last && last[1]) ? last + 1 : "/";
+                    break;
+                }
+                case '$': rep = (sh_identity->uid == 0) ? "# " : "$ "; break;
+                default:
+                    fprintf(stderr, "Unknown PS1 escape \\%c\n", *text);
+                    rep = "";
+                    break;
+            }
+            if (rep) {
+                size_t rlen = strlen(rep);
+                if (pos + rlen >= sizeof(output) - 1) rlen = sizeof(output) - 1 - pos;
+                memcpy(output + pos, rep, rlen);
+                pos += rlen;
+            }
+        } else {
+            output[pos++] = *text;
+        }
+        text++;
     }
-  output[pos] = '\0';
-  return xstrdup(output);
+    output[pos] = '\0';
+    return xstrdup(output);
 }
 
 char *prompt_build_ps1() {

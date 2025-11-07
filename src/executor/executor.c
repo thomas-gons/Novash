@@ -39,7 +39,7 @@ static int handle_redirection(redirection_t *redir) {
 // Execute the process (builtin or external)
 static void execute_process(process_t *proc) {
   if (builtin_is_builtin(proc->argv[0])) {
-    builtin_t f = builtin_get_function(proc->argv[0]);
+    builtin_fn_t f = builtin_get_function(proc->argv[0]);
     int argc = (int)arrlen(proc->argv);
     _exit(f(argc, proc->argv));
   } else {
@@ -113,7 +113,7 @@ static int handle_pure_builtin_execution(process_t *proc) {
 
   pr_info("Executing pure builtin command '%s' in shell process",
           proc->argv[0]);
-  builtin_t f = builtin_get_function(proc->argv[0]);
+  builtin_fn_t f = builtin_get_function(proc->argv[0]);
   status = f((int)arrlen(proc->argv), proc->argv);
 
   dup2(stdin_bak, STDIN_FILENO);

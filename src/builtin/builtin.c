@@ -13,14 +13,14 @@ void builtin_init() {
   shput(builtins, "fg", builtin_fg);
   shput(builtins, "bg", builtin_bg);
   shput(builtins, "history", builtin_history);
-  shput(builtins, "type", builtin_type);
+  shput(builtins, "type", builtin_fn_type);
 }
 
 /* --- BUILTIN LOOKUP --- */
 
 bool builtin_is_builtin(char *name) { return shget(builtins, name) != NULL; }
 
-builtin_t builtin_get_function(char *name) { return shget(builtins, name); }
+builtin_fn_t builtin_get_function(char *name) { return shget(builtins, name); }
 
 /* --- CLASSIC BUILTINS --- */
 
@@ -54,7 +54,7 @@ int builtin_pwd(int argc, char *argv[]) {
   return 0;
 }
 
-int builtin_type(int argc, char *argv[]) {
+int builtin_fn_type(int argc, char *argv[]) {
   if (argc < 2) {
     printf("type: missing argument\n");
     return 1;

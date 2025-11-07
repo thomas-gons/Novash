@@ -18,26 +18,26 @@
 #include <linux/limits.h>
 
 /* Builtin function type */
-typedef int (*builtin_t)(int argc, char *argv[]);
+typedef int (*builtin_fn_t)(int argc, char *argv[]);
 
 /* Hash table entry for builtins */
 typedef struct {
   char *key;
-  builtin_t value;
+  builtin_fn_t value;
 } builtin_entry_t;
 
 void builtin_init();
 
 /* builtin lookup */
 bool builtin_is_builtin(char *name);
-builtin_t builtin_get_function(char *name);
+builtin_fn_t builtin_get_function(char *name);
 
 /* builtin commands */
 int builtin_cd(int argc, char *argv[]);
 int builtin_echo(int argc, char *argv[]);
 int builtin_exit(int argc, char *argv[]);
 int builtin_pwd(int argc, char *argv[]);
-int builtin_type(int argc, char *argv[]);
+int builtin_fn_type(int argc, char *argv[]);
 
 int builtin_history(int argc, char *argv[]);
 

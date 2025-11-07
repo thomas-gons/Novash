@@ -93,6 +93,7 @@ set(NOVASH_SOURCES
     src/parser/parser.c
 
     # expander
+    src/expander/pipeline.c
     src/expander/expander.c
 
     # builtins

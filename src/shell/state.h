@@ -56,6 +56,7 @@ typedef struct {
     pid_t pid;           
     pid_t pgid;          
     char *cwd;
+    char *argv0;
 } shell_identity_t;
 
 typedef struct {

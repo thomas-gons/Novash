@@ -41,6 +41,8 @@ int shell_init() {
         return 1;
       }
     }
+
+    sh_state->identity.pgid = getpgrp();
     xtcsetpgrp(STDIN_FILENO, sh_state->identity.pgid);
     
     tcgetattr(STDIN_FILENO, &sh_state->shell_tmodes);

@@ -86,8 +86,10 @@ static void init_shell_identity() {
   identity.uid = getuid();
   identity.gid = getgid();
   identity.pid = getpid();
-  identity.pgid = getpgrp();
 
+  // Cannot call getpgrp() before setpgid(0,0) in shell_init()
+  identity.pgid = -1;
+  identity.argv0 = NULL;
   sh_state->identity = identity;
 }
 
@@ -126,14 +128,15 @@ void shell_state_init() {
   sh_state->should_exit = false;
 	
   init_shell_identity();
+  init_environment();
+  sh_state->identity.argv0 = shell_state_getenv("SHELL");
 	
   sh_state->hist = xmalloc(sizeof(history_t));
-  init_shell_jobs();
-  init_shell_last_exec();
-	
-  init_environment();
   history_init();
   history_load();
+
+  init_shell_jobs();
+  init_shell_last_exec();
 }
 
 shell_identity_t *shell_state_get_identity() {
