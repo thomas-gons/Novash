@@ -105,9 +105,14 @@ int shell_loop() {
     lexer_init(lex, input);
 
     ast_node_t *ast_node = parser_create_ast(lex);
-    expander_expand_ast(ast_node);
     #if defined (LOG_LEVEL) && LOG_LEVEL >= LOG_LEVEL_DEBUG
       char *ast_str = parser_ast_str(ast_node, 0);
+      pr_debug("Raw AST:\n%s", ast_str);
+      free(ast_str);
+    #endif
+    expander_expand_ast(ast_node);
+    #if defined (LOG_LEVEL) && LOG_LEVEL >= LOG_LEVEL_DEBUG
+      ast_str = parser_ast_str(ast_node, 0);
       pr_debug("Expanded AST:\n%s", ast_str);
       free(ast_str);
     #endif

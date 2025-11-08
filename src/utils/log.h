@@ -55,8 +55,10 @@ static inline void log_msg(const char *color, const char *level,
 #define LOG_LEVEL_DEBUG 4
 
 #if LOG_LEVEL >= LOG_LEVEL_ERR
-#define pr_err(fmt, ...)                                                       \
-  log_msg(RED, "ERR", __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+#define pr_err(fmt, ...) {                                                     \
+  log_msg(RED, "ERR", __FILE__, __LINE__, fmt, ##__VA_ARGS__);                 \
+  exit(EXIT_FAILURE);                                                          \
+}
 #else
 #define pr_err(fmt, ...)                                                       \
   do {                                                                         \

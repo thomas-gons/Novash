@@ -11,6 +11,7 @@
 
 #include "utils/system/memory.h"
 #include "utils/collections.h"
+#include "utils/log.h"
 #include <stdbool.h>
 #include <ctype.h>
 #include <string.h>
@@ -33,7 +34,9 @@ typedef enum {
 
 typedef enum {
   WORD_LITERAL,
-  WORD_VARIABLE
+  WORD_VARIABLE,
+  WORD_TILDE,
+  WORD_GLOB
 } word_part_type_e;
 
 typedef enum {
@@ -106,5 +109,8 @@ token_t lexer_next_token(lexer_t *lex);
  * @return number of characters that would have been written
  */
 size_t lexer_token_str(token_t tok, char *buf, size_t buf_sz);
+
+
+const char *lexer_part_type_str(word_part_type_e type);
 
 #endif // __LEXER_H__

@@ -3,7 +3,7 @@
 
 static char **expand_argv(word_part_t **argv_parts) {
     char **argv = NULL;
-    for (int i = 0; argv_parts[i] != NULL; i++) {
+    for (int i = 0; i < arrlen(argv_parts); i++) {
         arrpush(argv, expand_run_pipeline(argv_parts[i]));
     }
     arrpushnc(argv, NULL);

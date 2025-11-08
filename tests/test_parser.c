@@ -10,7 +10,7 @@
 #include <criterion/criterion.h>
 #include <criterion/logging.h>
 #include <stdio.h>
-#include "tokenizer/tokenizer.h"
+#include "lexer/lexer.h"
 #include "parser/parser.h"
 
 static char* ast_to_string(ast_node_t *node) {

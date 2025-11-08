@@ -305,7 +305,8 @@ void parser_free_ast(ast_node_t *node) {
 
 static char *raw_part_to_str(word_part_t *part) {
   char *buf = xmalloc(1024);
-  const char *type_str = (part->type == WORD_LITERAL) ? "LIT" : "VAR";
+  const char *type_str = lexer_part_type_str(part->type);
+
   const char *val_str = (part->value) ? part->value : "NULL";
   int len = snprintf(buf, 1024, "[%s] %s ", type_str, val_str);
   buf[len] = '\0';
@@ -336,11 +337,17 @@ static void rec_ast(ast_node_t *node, int indent, char ***lines) {
       snprintf(buf, sizeof(buf), "%*sargv_parts:", indent + 2, "");
       arrpush(*lines, xstrdup(buf));
       for (int i = 0; i < arrlen(node->cmd.argv_parts); i++) {
-        char *s = raw_part_to_str(node->cmd.argv_parts[i]);
-        snprintf(buf, sizeof(buf), "%*s%s", indent + 4, "", s);
+        char part_buf[512] = {0};  // buffer local initialisé à zéro
+
+        for (int j = 0; j < arrlen(node->cmd.argv_parts[i]); j++) {
+            char *tmp = raw_part_to_str(&node->cmd.argv_parts[i][j]);
+            strcat(part_buf, tmp);
+            free(tmp);
+        }
+
+        snprintf(buf, sizeof(buf), "%*s%s", indent + 4, "", part_buf);
         arrpush(*lines, xstrdup(buf));
-        free(s);
-      }
+    }
       snprintf(buf, sizeof(buf), "%*s", indent + 2, "");
       arrpush(*lines, xstrdup(buf));
     }
