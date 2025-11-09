@@ -1,3 +1,10 @@
+/*
+ * Novash — a minimalist shell implementation
+ * Copyright (C) 2025 Thomas Gons
+ *
+ * This file is licensed under the GNU General Public License v3 or later.
+ * See <https://www.gnu.org/licenses/> for details.
+ */
 #ifndef __PS1_H__
 #define __PS1_H__
 

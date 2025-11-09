@@ -1,3 +1,10 @@
+/*
+ * Novash — a minimalist shell implementation
+ * Copyright (C) 2025 Thomas Gons
+ *
+ * This file is licensed under the GNU General Public License v3 or later.
+ * See <https://www.gnu.org/licenses/> for details.
+ */
 #include "builtin.h"
 
 static builtin_entry_t *builtins = NULL;

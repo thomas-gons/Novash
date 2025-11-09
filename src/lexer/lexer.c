@@ -322,7 +322,7 @@ token_t lexer_next_token(lexer_t *lex) {
     default: {
       token_t tok = handle_word_token(lex);
       
-      if (is_word_fd(tok.raw_value)) {
+      if (is_word_fd(tok.raw_value) && (peek(lex) == '>' || peek(lex) == '<')) {
         tok.type = TOK_FD;
       }
 
