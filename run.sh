@@ -46,11 +46,14 @@ while [[ $# -gt 0 ]]; do
             BUILD_ONLY=true
             BUILD_CONFIG="Debug"
             BUILD_SUB_DIR="debug"
-            CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DLOG_LEVEL=DEBUG"
+            CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON -DLOG_LEVEL=DEBUG"
             shift
             ;;
         -t|--test)
             RUN_TESTS=true
+            BUILD_CONFIG="Debug"
+            BUILD_SUB_DIR="debug"
+            CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug"
             shift
             ;;
         -c|--clean)
@@ -79,27 +82,37 @@ fi
 
 BUILD_PATH="$BUILD_BASE_DIR/$BUILD_SUB_DIR"
 
-# --- Configure & build ---
+# --- Configure ---
 cmake -S . -B "$BUILD_PATH" $CMAKE_FLAGS
-cmake --build "$BUILD_PATH" -j$(nproc) --target $EXE
 
 # --- Run ---
 if [[ "$BUILD_ONLY" = true ]]; then
+    cmake --build "$BUILD_PATH" -j$(nproc) --target $EXE
     echo "Build completed in $BUILD_PATH"
     exit 0
 fi
 
 if [[ "$RUN_TESTS" = true ]]; then
     TEST_EXE="$BUILD_PATH/tests_novash"
+
+    # Rebuild tests to ensure up-to-date
+    echo "Building tests..."
+    cmake --build "$BUILD_PATH" --target tests_novash -j$(nproc)
+
+    # Check that the executable exists
     if [[ ! -f "$TEST_EXE" ]]; then
-        echo "Test executable not found, building..."
-        cmake --build "$BUILD_PATH" --target tests_novash
+        echo "Test executable not found after build!"
+        exit 1
     fi
+
     echo "Running tests..."
-    echo $TEST_EXE
     "$TEST_EXE"
     exit 0
 fi
+
+# Build the main executable
+echo "Building Novash shell..."
+cmake --build "$BUILD_PATH" -j$(nproc) --target $EXE
 
 set -e
 

@@ -45,11 +45,33 @@ void lexer_free_token(token_t *tok) {
   }
 }
 
-#define peek(lex) ((lex)->pos < (lex)->length ? (lex)->input[(lex)->pos] : '\0')
-#define advance(lex) ((lex)->pos < (lex)->length ? (lex)->input[(lex)->pos++] : '\0')
-#define ismeta_char(c) ((c) == '|' || (c) == '&' || (c) == ';' || (c) == '<' || (c) == '>' || (c) == '*' || (c) == '?')
-#define isshell_var(c) ((c) == '?' || (c) == '$' || (c) == '!' || (c) == '-')
-#define isword_char(c) (!(isspace(c) || ismeta_char(c) || (c) == '\0') || (c) == '/')
+static inline char peek(lexer_t *lex) {
+  return (lex->pos < lex->length) ? lex->input[lex->pos] : '\0';
+}
+
+static inline char advance(lexer_t *lex) {
+  return (lex->pos < lex->length) ? lex->input[lex->pos++] : '\0';
+}
+
+static inline bool ismetachar(char c) {
+  switch (c) {
+    case '|':
+    case '&':
+    case ';':
+    case '<':
+    case '>':
+    case '$':
+      return true;
+    default:
+      return false;
+  }
+}
+
+#define is_meta_char(c) (c == '|' || c == '&' || c == ';' || c == '<' || c == '>')
+#define is_expansion_char(c) (c == '$' || c == '*' || c == '?' || c == '~')
+#define is_special_parameter_char(c) ((c) == '$' || (c) == '?' || (c) == '!' || (c) == '-')
+#define is_word_char(c) (!isspace(c) && !is_meta_char(c) && !is_expansion_char(c))
+
 
 static inline void skip_whitespaces(lexer_t *lex) {
   char c;
@@ -64,30 +86,66 @@ static inline bool is_word_fd(char *buf) {
   return *end == '\0' && strlen(buf) > 0;
 }
 
-static char *handle_literal(lexer_t *lex, quote_context_e quote_ctx) {
-  size_t start = lex->pos;
-  while (1) {
-    char c = peek(lex);
-    if (c == '\0')
-      break;
-
-    if (quote_ctx == QUOTE_NONE) {
-      if (!isword_char(c) || c == '\'' || c == '"' || c == '$')
-        break;
-    } else if (quote_ctx == QUOTE_SINGLE && c == '\'') {
-      break;
-    } else if (quote_ctx == QUOTE_DOUBLE && (c == '"' || c == '$')) {
-      break;
-    }
-
-    advance(lex);
+// only handles simple escapes like \n, \t, \\, \', \"
+static char handle_escape(lexer_t *lex) {
+  advance(lex); // skip '\'
+  
+  char c = advance(lex);
+  switch (c) {
+    case 'n': return '\n';
+    case 't': return '\t';
+    case 'r': return '\r';
+    case 'a': return '\a';
+    case 'b': return '\b';
+    case 'f': return '\f';
+    case 'v': return '\v';
+    case '\\': return '\\';
+    case '\'':  return '\'';
+    case '\"': return '\"';
+    default:
+      return c;
   }
-
-  size_t len = lex->pos - start;
-  return (len > 0) ? xstrdup_n(&lex->input[start], len) : NULL;
 }
 
-static char *handle_variable_name(lexer_t *lex) {
+static char *handle_literal(lexer_t *lex, quote_context_e quote_ctx) {
+    size_t buf_cap = 64;
+    size_t buf_len = 0;
+    char *buf = xmalloc(buf_cap);
+
+    while (1) {
+        char c = peek(lex);
+        if (c == '\0') break;
+
+        if (quote_ctx == QUOTE_NONE) {
+            if (!is_word_char(c) || c == '\'' || c == '\"') break;
+        } else if (quote_ctx == QUOTE_SINGLE && c == '\'') {
+            break;
+        } else if (quote_ctx == QUOTE_DOUBLE && (c == '\"' || c == '$')) {
+            break;
+        }
+
+        if (c == '\\' && quote_ctx != QUOTE_SINGLE) {
+            char esc = handle_escape(lex);
+            if (buf_len + 1 >= buf_cap) {
+                buf_cap *= 2;
+                buf = xrealloc(buf, buf_cap);
+            }
+            buf[buf_len++] = esc;
+        } else {
+            if (buf_len + 1 >= buf_cap) {
+                buf_cap *= 2;
+                buf = xrealloc(buf, buf_cap);
+            }
+            buf[buf_len++] = advance(lex);
+        }
+    }
+
+    buf[buf_len] = '\0';
+    return (buf_len > 0) ? buf : NULL;
+}
+
+static char *handle_variable_word_part(lexer_t *lex) {
+  advance(lex); // skip '$'
   size_t start = lex->pos;
   bool has_curly = false;
   if (peek(lex) == '{') {
@@ -95,7 +153,7 @@ static char *handle_variable_name(lexer_t *lex) {
     advance(lex);
   }
 
-  if (isshell_var(peek(lex))) {
+  if (is_special_parameter_char(peek(lex))) {
     advance(lex);
     if (has_curly) {
       if (peek(lex) == '}')
@@ -129,66 +187,68 @@ static char *handle_variable_name(lexer_t *lex) {
   return xstrdup_n(&lex->input[start] + has_curly, len);
 }
 
+static char *handle_tilde_word_part(lexer_t *lex) {
+  size_t start = lex->pos;
+  advance(lex); // skip '~'
+
+  while (isalnum(peek(lex)) || peek(lex) == '_') {
+    advance(lex);
+  }
+
+  size_t len = lex->pos - start;
+  return xstrdup_n(&lex->input[start], len);
+}
+
+static char *handle_glob_word_part(lexer_t *lex) {
+  char c = peek(lex);
+  advance(lex); // skip glob character
+  return xstrdup_n(&c, 1);
+}
+
 static word_part_t lex_next_word_part(lexer_t *lex, quote_context_e *quote_ctx) {
   char c = peek(lex);
-  word_part_t part = {0};
 
-  if (c == '\'' || c == '"') {
+  if (c == '\'' || c == '\"') {
     advance(lex);
     *quote_ctx = (*quote_ctx == QUOTE_NONE)
                    ? (c == '\'' ? QUOTE_SINGLE : QUOTE_DOUBLE)
                    : QUOTE_NONE;
-    return part;
+    
+    return (word_part_t){0};
   }
 
-  if (c == '$' && *quote_ctx != QUOTE_SINGLE) {
-    advance(lex);
-    char *varname = handle_variable_name(lex);
-
-    if (*varname == '\0') {
-      // return empty part to ignore '${}' case
-      return part;
-    }
+  // Handle variable expansion
+  if (c == '$' && (*quote_ctx == QUOTE_NONE || *quote_ctx == QUOTE_DOUBLE)) {
+    char *varname = handle_variable_word_part(lex);
 
     if (!varname) {
-      part.type = WORD_LITERAL;
-      part.value = xstrdup("$");
-    } else {
-      part.type = WORD_VARIABLE;
-      part.value = varname;
+      return (word_part_t){WORD_LITERAL, *quote_ctx, xstrdup("$")};
     }
 
-    part.quote = *quote_ctx;
-    return part;
+    // ignore ${} case
+    if (*varname == '\0') {
+      // varname is stack allocated here (no free needed)
+      return (word_part_t){0};
+    }
+    
+    return (word_part_t){WORD_VARIABLE, *quote_ctx, varname};
   }
 
+  // Handle tilde expansion
   if (c == '~' && *quote_ctx == QUOTE_NONE) {
-    size_t start_pos = lex->pos;
-    advance(lex);
-    while (isalnum(peek(lex)) || peek(lex) == '_' || peek(lex) == '-') {
-      advance(lex);
-    }
-    size_t len = lex->pos - start_pos;
-    part.type = WORD_TILDE;
-    part.quote = *quote_ctx;
-    part.value = xstrdup_n(&lex->input[start_pos], len + 1);
-    part.value[len] = '\0';
-    return part;
+    char *tilde = handle_tilde_word_part(lex);
+    return (word_part_t){WORD_TILDE, *quote_ctx, tilde};
   }
 
-  if (c == '*' || c == '?') {
-    advance(lex);
-    part.type = WORD_GLOB;
-    part.quote = *quote_ctx;
-    part.value = xstrdup_n(&c, 1);
-    return part;
+  // Handle globbing characters
+  // Future note: could be improved to handle [a-z] and {brace} patterns
+  if ((c == '*' || c == '?') && *quote_ctx == QUOTE_NONE) {
+    char *glob = handle_glob_word_part(lex);
+    return (word_part_t){WORD_GLOB, *quote_ctx, glob};
   }
 
   char *lit = handle_literal(lex, *quote_ctx);
-  part.type = WORD_LITERAL;
-  part.quote = *quote_ctx;
-  part.value = lit ? lit : xstrdup("");
-  return part;
+  return (word_part_t){WORD_LITERAL, *quote_ctx, lit ? lit : xstrdup("")};
 }
 
 static token_t handle_word_token(lexer_t *lex) {
@@ -201,7 +261,7 @@ static token_t handle_word_token(lexer_t *lex) {
     if (c == '\0')
       break;
 
-    if (quote_ctx == QUOTE_NONE && !isword_char(c) && c != '*' && c != '?')
+    if (quote_ctx == QUOTE_NONE && (isspace(c) || is_meta_char(c)))
       break;
 
     word_part_t part = lex_next_word_part(lex, &quote_ctx);

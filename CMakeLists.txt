@@ -180,12 +180,3 @@ if(ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE MATCHES Debug AND CMAKE_C_COMPILER_ID 
     target_compile_options(nsh PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
     target_link_options(nsh PRIVATE -fsanitize=address,undefined)
 endif()
-
-# -----------------------
-# Convenience targets
-# -----------------------
-add_custom_target(format
-    COMMAND clang-format -i ${NOVASH_SOURCES}
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    COMMENT "Format source files with clang-format"
-)

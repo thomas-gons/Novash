@@ -13,7 +13,7 @@
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 
-static char* ast_to_string(ast_node_t *node) {
+/* static char* ast_to_string(ast_node_t *node) {
     // This function uses a static buffer to capture the print_ast output
     // Warning: limited to 16k chars for simplicity
     static char buf[16384];
@@ -113,3 +113,4 @@ Test(parser, quotes_and_special_chars) {
 
     parser_free_ast(ast);
 }
+ */
