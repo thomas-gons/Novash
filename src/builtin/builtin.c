@@ -30,7 +30,11 @@ int builtin_cd(int argc, char *argv[]) {
   int r = chdir(argc == 1 || *_path == '~' ? home : _path);
   
   shell_state_t *sh_state = shell_state_get();
-  getcwd(sh_state->identity.cwd, PATH_MAX);
+  char *cwd = getcwd(NULL, 0);
+  if (cwd) {
+      free(sh_state->identity.cwd);
+      sh_state->identity.cwd = cwd;
+  }
   return r;
 }
 

@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
             RUN_TESTS=true
             BUILD_CONFIG="Debug"
             BUILD_SUB_DIR="debug"
-            CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug"
+            CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_TESTS=ON"
             shift
             ;;
         -c|--clean)

@@ -1,10 +1,6 @@
 #include "pipeline.h"
 
 
-static bool has_glob_meta(const char *s) {
-    return s && strpbrk(s, "*?[") != NULL;
-}
-
 static char *expand_special_one(char sigil) {
     shell_state_t *sh = shell_state_get();
     char buf[32];
@@ -33,7 +29,6 @@ static char *expand_special_one(char sigil) {
             return NULL;
     }
 }
-
 
 static char *expand_params_in_string(word_part_t in_part) {
     const char *p = in_part.value;
@@ -87,90 +82,66 @@ static void pass_expand_tilde(word_part_t *in_parts) {
     }
 }
 
-static char *build_globbed_string(word_part_t *parts, int part_index) {
+
+static char *build_str_from_parts(word_part_t *parts) {
     size_t total_len = 0;
-
-    if (part_index > 0) {
-        total_len += strlen(parts[part_index - 1].value);
-    }
-
-    total_len += strlen(parts[part_index].value);
-
-    if (part_index + 1 < arrlen(parts)) {
-        total_len += strlen(parts[part_index + 1].value);
-    }
-
+    for (int i = 0; i < arrlen(parts); i++)
+        total_len += strlen(parts[i].value);
     total_len += 1;
 
     char *buf = xmalloc(total_len);
     buf[0] = '\0';
-
-    if (part_index > 0) strcat(buf, parts[part_index - 1].value);
-    strcat(buf, parts[part_index].value);
-    if (part_index + 1 < arrlen(parts)) strcat(buf, parts[part_index + 1].value);
+    for (int i = 0; i < arrlen(parts); i++)
+        strcat(buf, parts[i].value);
 
     return buf;
 }
 
-static word_part_t *pass_glob(word_part_t *in_parts) {
-    for (int i = 0; i < arrlen(in_parts); i++) {
-        word_part_t *wp = &in_parts[i];
-        if (wp->type != WORD_GLOB) continue;
-        
-        if (wp->quote != QUOTE_SINGLE && has_glob_meta(wp->value)) {
-            glob_t g = {0};
+static char **pass_glob(word_part_t *in_parts) {
+    char **out = NULL;
+    glob_t g = {0};
 
-            char *pattern = build_globbed_string(in_parts, i);
-            int rc = glob(pattern, 0, NULL, &g);
-            if (rc == 0 && g.gl_pathc > 0) {
-                // For simplicity, we only handle the first match here.
-                for (size_t j = 0; j < g.gl_pathc; j++) {
-                    wp->value = xstrdup(g.gl_pathv[j]);
-                    break;
-                }
-                globfree(&g);
-                continue;
-            }
-            globfree(&g);
-        }
+    char *pattern = build_str_from_parts(in_parts);
+    int rc = glob(pattern, 0, NULL, &g);
+    if (rc == GLOB_NOMATCH || g.gl_pathc == 0) {
+        arrpush(out, xstrdup(pattern));
+    } else {
+        for (size_t j = 0; j < g.gl_pathc; j++)
+            arrpush(out, xstrdup(g.gl_pathv[j]));
     }
-    word_part_t *out = NULL;
-    int parts_len = (int) arrlen(in_parts);
-    for (int i = 0; i < parts_len; i++) {
-        if (i + 1 < parts_len && in_parts[i+1].type == WORD_GLOB) {
-            continue;
-        }
-        if (i - 1 >= 0 && in_parts[i-1].type == WORD_GLOB) {
-            continue;
-        }
-
-        arrpush(out, in_parts[i]);
-    }
-
+    free(pattern);
+    globfree(&g);
     return out;
 }
 
-static char *build_final_string_from_parts(word_part_t *parts) {
-    size_t total_len = 0;
-    for (int i = 0; i < arrlen(parts); i++) {
-        total_len += strlen(parts[i].value);
-    }
 
-    char *result = xmalloc(total_len + 1);
-    size_t pos = 0;
-    for (int i = 0; i < arrlen(parts); i++) {
-        size_t part_len = strlen(parts[i].value);
-        memcpy(result + pos, parts[i].value, part_len);
-        pos += part_len;
+char **expand_argv_parts(word_part_t **argv_parts) {
+    char **argv = NULL;
+    for (int i = 0; i < arrlen(argv_parts); i++) {
+        word_part_t *parts = argv_parts[i];
+
+        pass_expand_params(parts);
+        pass_expand_tilde(parts);
+        if (arrlen(parts) == 1 && parts[0].type == WORD_LITERAL) {
+            arrpush(argv, xstrdup(parts[0].value));
+        } else {
+            char **argv_entry = pass_glob(parts);
+            for (int j = 0; j < arrlen(argv_entry); j++) {
+                arrpush(argv, xstrdup(argv_entry[j]));
+                free(argv_entry[j]);
+            }
+            arrfree(argv_entry);
+        }
     }
-    result[total_len] = '\0';
-    return result;
+    arrpushnc(argv, NULL);
+    return argv;
 }
 
-char *expand_run_pipeline(word_part_t *in_parts) {
-    pass_expand_params(in_parts);
-    pass_expand_tilde(in_parts);
-    word_part_t *out_parts = pass_glob(in_parts);
 
-    return build_final_string_from_parts(out_parts);
+char *expand_redirection_target(word_part_t *redir_target_parts) {
+    pass_expand_params(redir_target_parts);
+    pass_expand_tilde(redir_target_parts);
+
+    char *final_str = build_str_from_parts(redir_target_parts);
+    return final_str;
 }

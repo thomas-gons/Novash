@@ -1,25 +1,9 @@
 #include "expander.h"
 
-
-static char **expand_argv(word_part_t **argv_parts) {
-    char **argv = NULL;
-    for (int i = 0; i < arrlen(argv_parts); i++) {
-        arrpush(argv, expand_run_pipeline(argv_parts[i]));
-    }
-    arrpushnc(argv, NULL);
-    return argv;
-}
-
-static char *expand_redir_target(word_part_t *target_parts) {
-    if (!target_parts) return NULL;
-    
-    return expand_run_pipeline(target_parts);
-}
-
 static void expander_expand_cmd(ast_node_t *node) {
     if (node->cmd.argv_parts) {
         arrfree(node->cmd.argv);
-        node->cmd.argv = expand_argv(node->cmd.argv_parts);
+        node->cmd.argv = expand_argv_parts(node->cmd.argv_parts);
     }
 
     if (node->cmd.redir) {
@@ -27,7 +11,7 @@ static void expander_expand_cmd(ast_node_t *node) {
             redirection_t *r = &node->cmd.redir[i];
             if (r->target_parts) {
                 free(r->target);
-                r->target = expand_redir_target(r->target_parts);
+                r->target = expand_redirection_target(r->target_parts);
             }
         }
     }

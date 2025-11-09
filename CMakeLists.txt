@@ -18,6 +18,7 @@ set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS ${allowed_build_types})
 # -----------------------
 option(ENABLE_SANITIZERS "Enable ASAN/UBSAN in Debug builds" OFF)
 option(WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
+option(ENABLE_TESTS "Enable building tests using Criterion" OFF)
 
 # -----------------------
 # Log level configuration
@@ -125,8 +126,18 @@ set(NOVASH_SOURCES
 
 # -- PACKAGES --
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(CRITERION REQUIRED criterion)
 pkg_check_modules(READLINE REQUIRED readline)
+
+if (ENABLE_TESTS)
+    pkg_check_modules(CRITERION REQUIRED criterion)
+    if(CRITERION_FOUND)
+        message(STATUS "Criterion found, enabling tests")
+        set(HAVE_CRITERION TRUE)
+    else()
+        message(WARNING "Criterion not found, tests will be disabled")
+        set(HAVE_CRITERION FALSE)
+    endif()
+endif()
 
 # --- Build the core as a library ---
 add_library(novash_core ${NOVASH_SOURCES})
@@ -146,7 +157,7 @@ set(TEST_SOURCES
     tests/test_parser.c
 )
 
-if (TEST_SOURCES)
+if (ENABLE_TESTS AND HAVE_CRITERION)
     add_executable(tests_novash ${TEST_SOURCES})
     target_compile_definitions(tests_novash PRIVATE LOG_LEVEL=${LOG_LEVEL_INT})
     target_include_directories(tests_novash PRIVATE ${CRITERION_INCLUDE_DIRS} src)

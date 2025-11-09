@@ -15,7 +15,7 @@
 #include "utils/system/memory.h"
 
 
-
-char *expand_run_pipeline(word_part_t *in_parts);
+char **expand_argv_parts(word_part_t **argv_parts);
+char *expand_redirection_target(word_part_t *redir_target_parts);
 
 #endif // __NOVASH_EXPANDER_PIPELINE_H__

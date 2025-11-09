@@ -131,53 +131,38 @@ Test(lexer, tilde_word_part) {
     lexer_free_token(&tok);
 }
 
-// Test(lexer, globbing_word_part) {
-//     lexer_t *lex = lexer_new();
-//     lexer_init(lex, "file*name?.txt [a-z]* {brace} \\*literal\\?");
-//     token_t tok;
+Test(lexer, globbing_word_part) {
+    lexer_t *lex = lexer_new();
+    lexer_init(lex, "file*name?.txt \\*literal\\?");
+    token_t tok;
 
-//     // file*name?.txt -> file, *, name, ?, .txt
-//     tok = lexer_next_token(lex);
-//     cr_assert_eq(tok.type, TOK_WORD);
-//     cr_assert_eq(arrlen(tok.parts), 5);
+    // file*name?.txt -> file [LIT], * [GLOB], name [LIT], ? [GLOB], .txt [LIT]
+    tok = lexer_next_token(lex);
+    cr_assert_eq(tok.type, TOK_WORD);
+    cr_assert_eq(arrlen(tok.parts), 5);
 
-//     cr_assert_eq(tok.parts[0].type, WORD_LITERAL);
-//     cr_assert_str_eq(tok.parts[0].value, "file");
-//     cr_assert_eq(tok.parts[1].type, WORD_GLOB);
-//     cr_assert_str_eq(tok.parts[1].value, "*");
-//     cr_assert_eq(tok.parts[2].type, WORD_LITERAL);
-//     cr_assert_str_eq(tok.parts[2].value, "name");
-//     cr_assert_eq(tok.parts[3].type, WORD_GLOB);
-//     cr_assert_str_eq(tok.parts[3].value, "?");
-//     cr_assert_eq(tok.parts[4].type, WORD_LITERAL);
-//     cr_assert_str_eq(tok.parts[4].value, ".txt");
-//     lexer_free_token(&tok);
+    cr_assert_eq(tok.parts[0].type, WORD_LITERAL);
+    cr_assert_str_eq(tok.parts[0].value, "file");
+    cr_assert_eq(tok.parts[1].type, WORD_GLOB);
+    cr_assert_str_eq(tok.parts[1].value, "*");
+    cr_assert_eq(tok.parts[2].type, WORD_LITERAL);
+    cr_assert_str_eq(tok.parts[2].value, "name");
+    cr_assert_eq(tok.parts[3].type, WORD_GLOB);
+    cr_assert_str_eq(tok.parts[3].value, "?");
+    cr_assert_eq(tok.parts[4].type, WORD_LITERAL);
+    cr_assert_str_eq(tok.parts[4].value, ".txt");
+    lexer_free_token(&tok);
 
-//     // [a-z]* -> [a-z], *
-//     tok = lexer_next_token(lex);
-//     cr_assert_eq(arrlen(tok.parts), 2);
-//     cr_assert_eq(tok.parts[0].type, WORD_GLOB);
-//     cr_assert_str_eq(tok.parts[0].value, "[a-z]");
-//     cr_assert_eq(tok.parts[1].type, WORD_GLOB);
-//     cr_assert_str_eq(tok.parts[1].value, "*");
-//     lexer_free_token(&tok);
 
-//     // {brace} -> {brace}
-//     tok = lexer_next_token(lex);
-//     cr_assert_eq(arrlen(tok.parts), 1);
-//     cr_assert_eq(tok.parts[0].type, WORD_GLOB);
-//     cr_assert_str_eq(tok.parts[0].value, "{brace}");
-//     lexer_free_token(&tok);
+    // \*literal\? -> *literal? [LIT]
+    tok = lexer_next_token(lex);
+    cr_assert_eq(arrlen(tok.parts), 1);
+    cr_assert_eq(tok.parts[0].type, WORD_LITERAL);
+    cr_assert_str_eq(tok.parts[0].value, "*literal?");
+    lexer_free_token(&tok);
 
-//     // \*literal\? -> *literal?
-//     tok = lexer_next_token(lex);
-//     cr_assert_eq(arrlen(tok.parts), 1);
-//     cr_assert_eq(tok.parts[0].type, WORD_LITERAL);
-//     cr_assert_str_eq(tok.parts[0].value, "*literal?");
-//     lexer_free_token(&tok);
-
-//     lexer_free(lex);
-// }
+    lexer_free(lex);
+}
 
 Test(lexer, basic_tokens) {
     lexer_t *lex = lexer_new();
