@@ -111,6 +111,7 @@ static char **pass_glob(word_part_t *in_parts) {
     char *pattern = build_str_from_parts(in_parts);
     int rc = glob(pattern, 0, NULL, &g);
     if (rc == GLOB_NOMATCH || g.gl_pathc == 0) {
+        printf("nsh: glob: no matches found for pattern '%s'\n", pattern);
         arrpush(out, xstrdup(pattern));
     } else {
         for (size_t j = 0; j < g.gl_pathc; j++)

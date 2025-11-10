@@ -8,16 +8,13 @@
 #ifndef __PS1_H__
 #define __PS1_H__
 
+#include <locale.h>
 #include <stdbool.h>
 #include <shell/state.h>
 #include "utils/system/memory.h"
 
-
-#define TRAILING_DIAMOND "\uE0B4"
-#define LEADING_DIAMOND  "\uE0B6"
-#define TRAILING_POWERLINE "\uE0B0"
-#define LEADING_POWERLINE  "\uE0B1"
-
+#define USE_UTF8_SYMBOLS true
+#define USE_COLORS       true
 
 #define COLOR_BLACK       "\033[30m"
 #define COLOR_RED         "\033[31m"
@@ -53,6 +50,7 @@ typedef struct {
 } PS1_block_t;
 
 
+void prompt_symbols_init();
 char *prompt_build_ps1();
 
 #endif // __PS1_H__

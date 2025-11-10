@@ -67,8 +67,9 @@ static inline bool ismetachar(char c) {
   }
 }
 
-#define is_meta_char(c) (c == '|' || c == '&' || c == ';' || c == '<' || c == '>')
-#define is_expansion_char(c) (c == '$' || c == '*' || c == '?' || c == '~')
+#define is_meta_char(c) ((c) == '|' || (c) == '&' || (c) == ';' || (c) == '<' || (c) == '>')
+#define is_glob_char(c) ((c) == '*' || (c) == '?' || (c) == '[')
+#define is_expansion_char(c) ((c) == '$' || (c) == '*' || (c) == '?' || is_glob_char(c))
 #define is_special_parameter_char(c) ((c) == '$' || (c) == '?' || (c) == '!' || (c) == '-')
 #define is_word_char(c) (!isspace(c) && !is_meta_char(c) && !is_expansion_char(c))
 
@@ -201,8 +202,24 @@ static char *handle_tilde_word_part(lexer_t *lex) {
 
 static char *handle_glob_word_part(lexer_t *lex) {
   char c = peek(lex);
-  advance(lex); // skip glob character
-  return xstrdup_n(&c, 1);
+  if (c == '*' || c == '?') {
+    advance(lex);
+    return xstrdup_n(&c, 1);
+  }
+
+  size_t start = lex->pos;
+  while ((c = peek(lex)) != '\0' && c != ']') {
+    advance(lex);
+  }
+
+  if (c == '\0') {
+    // unmatched '['
+    pr_err("lexer: unmatched '[' in glob pattern\n");
+  }
+
+  advance(lex); // skip ']'
+  size_t len = lex->pos - start;
+  return xstrdup_n(&lex->input[start], len);
 }
 
 static word_part_t lex_next_word_part(lexer_t *lex, quote_context_e *quote_ctx) {
@@ -242,7 +259,7 @@ static word_part_t lex_next_word_part(lexer_t *lex, quote_context_e *quote_ctx) 
 
   // Handle globbing characters
   // Future note: could be improved to handle [a-z] and {brace} patterns
-  if ((c == '*' || c == '?') && *quote_ctx == QUOTE_NONE) {
+  if (is_glob_char(c) && *quote_ctx == QUOTE_NONE) {
     char *glob = handle_glob_word_part(lex);
     return (word_part_t){WORD_GLOB, *quote_ctx, glob};
   }

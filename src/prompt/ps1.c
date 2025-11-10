@@ -7,11 +7,34 @@
  */
 #include "ps1.h"
 
-const PS1_block_t PS1_blocks[] = {
-    { .text = "\\u@\\h", .leading = NULL, .trailing = TRAILING_DIAMOND, .color = { .fg = NULL, .bg = BG_COLOR_BLUE } },
-    { .text = "\\W",     .leading = NULL, .trailing = TRAILING_DIAMOND, .color = { .fg = NULL, .bg = BG_COLOR_GREEN } },
-    { .text = NULL }
-};
+const char *TRAILING_DIAMOND;
+const char *LEADING_DIAMOND;
+const char *TRAILING_POWERLINE;
+const char *LEADING_POWERLINE;
+
+static PS1_block_t *PS1_blocks = NULL;
+
+
+void prompt_symbols_init() {
+    if (shell_is_utf8_supported() && USE_UTF8_SYMBOLS) {
+        TRAILING_DIAMOND = "\uE0B4";
+        LEADING_DIAMOND = "\uE0B6";
+        TRAILING_POWERLINE = "\uE0B0";
+        LEADING_POWERLINE = "\uE0B1";
+    } else {
+        TRAILING_DIAMOND = "[v]";
+        LEADING_DIAMOND = "[^]";
+        TRAILING_POWERLINE = "[>]";
+        LEADING_POWERLINE = "[<]";
+    }
+
+    // Define PS1 blocks
+    PS1_blocks = xcalloc(4, sizeof(PS1_block_t));
+    PS1_blocks[0] = (PS1_block_t){ .text = "\\u@\\h", .leading = NULL, .trailing = TRAILING_DIAMOND, .color = { .fg = NULL, .bg = BG_COLOR_BLUE } };
+    PS1_blocks[1] = (PS1_block_t){ .text = "\\W",     .leading = NULL, .trailing = TRAILING_DIAMOND, .color = { .fg = NULL, .bg = BG_COLOR_GREEN } };
+    PS1_blocks[2] = (PS1_block_t){ .text = NULL };
+}
+
 
 
 static int extract_code(const char *seq) {
@@ -62,8 +85,8 @@ static char *make_ansi_color(const char *fg, const char *bg) {
 static size_t ps1_apply_color(char *dst, size_t max, const char *text, PS1_color_t color, bool reverse) {
     const char *fg = (reverse) ? get_reverse_color(color.fg) : color.fg;
     const char *bg = (reverse) ? get_reverse_color(color.bg) : color.bg;
-    
-    const char *ansi_color = make_ansi_color(fg, bg);
+
+    const char *ansi_color = (USE_COLORS) ? make_ansi_color(fg, bg) : xstrdup("");
     if (reverse) {
         free((void*)fg);
         free((void*)bg);
@@ -117,6 +140,7 @@ static char *ps1_handle_text(const char *text) {
 char *prompt_build_ps1() {
     char buf[1024] = {0};
     size_t pos = 0;
+    bool utf8_supported = shell_is_utf8_supported();
 
     bool should_reverse = false;
     for (size_t i = 0; PS1_blocks[i].text != NULL; i++) {
@@ -124,7 +148,7 @@ char *prompt_build_ps1() {
 
         // Leading
         char *leading = (char*) b->leading;
-        if (leading == NULL) leading = " ";
+        if (leading == NULL || !utf8_supported) leading = " ";
         else should_reverse = true;
 
         pos += ps1_apply_color(buf + pos, sizeof(buf) - pos, leading, b->color, should_reverse);
@@ -137,7 +161,7 @@ char *prompt_build_ps1() {
         // Trailing
         char *trailing = (char*) b->trailing;
         PS1_color_t trailing_color = b->color;
-        if (trailing == NULL) {
+        if (trailing == NULL || !utf8_supported) {
             trailing = " ";
         } else {
             trailing_color.fg = get_reverse_color(b->color.bg);

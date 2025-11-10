@@ -85,7 +85,6 @@ BUILD_PATH="$BUILD_BASE_DIR/$BUILD_SUB_DIR"
 # --- Configure ---
 cmake -S . -B "$BUILD_PATH" $CMAKE_FLAGS
 
-# --- Run ---
 if [[ "$BUILD_ONLY" = true ]]; then
     cmake --build "$BUILD_PATH" -j$(nproc) --target $EXE
     echo "Build completed in $BUILD_PATH"
@@ -113,8 +112,6 @@ fi
 # Build the main executable
 echo "Building Novash shell..."
 cmake --build "$BUILD_PATH" -j$(nproc) --target $EXE
-
-set -e
 
 # Run the shell
 "$BUILD_PATH/$EXE"

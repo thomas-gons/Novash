@@ -125,6 +125,8 @@ void shell_state_init() {
   sh_state->flags.debug = false;
 #endif
 
+  const char *locale = setlocale(LC_CTYPE, "");
+  sh_state->support_utf8 = (locale != NULL && (strstr(locale, "UTF-8") || strstr(locale, "utf8")));
   sh_state->should_exit = false;
 	
   init_shell_identity();
@@ -177,6 +179,10 @@ char *shell_state_get_flags(void) {
 
     buf[pos] = '\0';
     return xstrdup(buf);
+}
+
+bool shell_is_utf8_supported() {
+  return sh_state->support_utf8;
 }
 
 void shell_regain_control() {

@@ -26,6 +26,7 @@ int shell_init() {
   // Initialize shell state early so signal handlers can safely access it.
   shell_state_init();
   shell_state_t *sh_state = shell_state_get();
+  prompt_symbols_init();
   builtin_init();
   signal(SIGTTOU, SIG_IGN);
   signal(SIGTTIN, SIG_IGN);
@@ -67,11 +68,7 @@ void shell_cleanup() {
 }
 
 
-#include <locale.h>
-
-
 int shell_loop() {
-  setlocale(LC_CTYPE, "");
   shell_state_t *sh_state = shell_state_get();
   char *input = NULL;
   char *prompt = NULL;

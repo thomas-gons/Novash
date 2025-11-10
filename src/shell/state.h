@@ -12,6 +12,7 @@
 #include "config.h"
 #include "utils/collections.h"
 #include "utils/system/syscall.h"
+#include <locale.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -82,6 +83,7 @@ typedef struct shell_state_t {
   
   shell_flags_t flags;
   struct termios shell_tmodes;
+  bool support_utf8;
   bool should_exit;
 
 } shell_state_t;
@@ -112,6 +114,8 @@ shell_identity_t *shell_state_get_identity();
 shell_jobs_t *shell_state_get_jobs();
 shell_last_exec_t *shell_state_get_last_exec();
 char *shell_state_get_flags(void);
+
+bool shell_is_utf8_supported();
 
 /**
  * @brief Regains control of the terminal for the shell process.
