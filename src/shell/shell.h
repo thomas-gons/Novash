@@ -15,23 +15,22 @@
 
 #include "executor/executor.h"
 #include "executor/jobs.h"
+#include "expander/expander.h"
 #include "history/history.h"
 #include "lexer/lexer.h"
 #include "parser/parser.h"
-#include "expander/expander.h"
+#include "prompt/ps1.h"
 #include "shell/signal.h"
 #include "shell/state.h"
-#include "prompt/ps1.h"
 #include <errno.h>
 #include <fcntl.h>
-#include <stdio.h>
 #include <readline/history.h>
 #include <readline/readline.h>
 #include <signal.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
-
 
 /**
  * @brief Initializes all necessary shell subsystems.

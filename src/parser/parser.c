@@ -115,7 +115,6 @@ static redirection_t *parse_redirection(lexer_t *lex) {
   return redir;
 }
 
-
 /**
  * @brief Parse a simple command from the lexer
  * @param lex pointer to the lexer
@@ -138,13 +137,11 @@ static ast_node_t *parse_command(lexer_t *lex) {
 
   ast_node_t *ast_node = xmalloc(sizeof(ast_node_t));
   ast_node->type = NODE_CMD;
-  ast_node->cmd = (cmd_node_t){
-      .argv_parts = argv_parts,
-      .argv = NULL,
-      .redir = redir,
-      .raw_str = raw_str,
-      .is_bg = is_bg
-  };
+  ast_node->cmd = (cmd_node_t){.argv_parts = argv_parts,
+                               .argv = NULL,
+                               .redir = redir,
+                               .raw_str = raw_str,
+                               .is_bg = is_bg};
 
   return ast_node;
 }
@@ -259,7 +256,7 @@ void parser_free_ast(ast_node_t *node) {
       arrfree(cmd.argv_parts[i]);
     }
     arrfree(cmd.argv_parts);
-    
+
     for (int i = 0; i < arrlen(cmd.argv); i++) {
       free(cmd.argv[i]);
     }
@@ -337,17 +334,17 @@ static void rec_ast(ast_node_t *node, int indent, char ***lines) {
       snprintf(buf, sizeof(buf), "%*sargv_parts:", indent + 2, "");
       arrpush(*lines, xstrdup(buf));
       for (int i = 0; i < arrlen(node->cmd.argv_parts); i++) {
-        char part_buf[512] = {0};  // buffer local initialisé à zéro
+        char part_buf[512] = {0}; // buffer local initialisé à zéro
 
         for (int j = 0; j < arrlen(node->cmd.argv_parts[i]); j++) {
-            char *tmp = raw_part_to_str(&node->cmd.argv_parts[i][j]);
-            strcat(part_buf, tmp);
-            free(tmp);
+          char *tmp = raw_part_to_str(&node->cmd.argv_parts[i][j]);
+          strcat(part_buf, tmp);
+          free(tmp);
         }
 
         snprintf(buf, sizeof(buf), "%*s%s", indent + 4, "", part_buf);
         arrpush(*lines, xstrdup(buf));
-    }
+      }
       snprintf(buf, sizeof(buf), "%*s", indent + 2, "");
       arrpush(*lines, xstrdup(buf));
     }
@@ -356,11 +353,10 @@ static void rec_ast(ast_node_t *node, int indent, char ***lines) {
     if (arrlen(node->cmd.redir) > 0) {
       for (int i = 0; i < arrlen(node->cmd.redir); i++) {
         redirection_t r = node->cmd.redir[i];
-        const char *redir_op =
-            (r.type == REDIR_IN)     ? "<"
-            : (r.type == REDIR_OUT)  ? ">"
-            : (r.type == REDIR_APPEND) ? ">>"
-                                       : "?";
+        const char *redir_op = (r.type == REDIR_IN)       ? "<"
+                               : (r.type == REDIR_OUT)    ? ">"
+                               : (r.type == REDIR_APPEND) ? ">>"
+                                                          : "?";
         if (r.target) {
           snprintf(buf, sizeof(buf), "%*s[%d%s %s]", indent + 2, "", r.fd,
                    redir_op, r.target);
@@ -415,7 +411,6 @@ static void rec_ast(ast_node_t *node, int indent, char ***lines) {
     break;
   }
 }
-
 
 char *parser_ast_str(ast_node_t *node, int indent) {
   if (!node)

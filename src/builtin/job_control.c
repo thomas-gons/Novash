@@ -24,8 +24,8 @@ int builtin_jobs(int argc, char *argv[]) {
   return 0;
 }
 
-
-static bool parse_job_id(const char *arg, size_t *out_id, const char *cmd_name) {
+static bool parse_job_id(const char *arg, size_t *out_id,
+                         const char *cmd_name) {
   if (arg[0] != '%') {
     fprintf(stderr, "%s: invalid syntax, expected '%%<id>'\n", cmd_name);
     return false;
@@ -42,7 +42,8 @@ static bool parse_job_id(const char *arg, size_t *out_id, const char *cmd_name) 
   return true;
 }
 
-static size_t *retrieve_arg_job_ids(const char *cmd_name, int argc, char *argv[]) {
+static size_t *retrieve_arg_job_ids(const char *cmd_name, int argc,
+                                    char *argv[]) {
   size_t jobs_count = (argc > 1) ? (size_t)(argc - 1) : 1;
   size_t *ids = xcalloc(jobs_count, sizeof(size_t));
 
@@ -153,7 +154,7 @@ int builtin_fg(int argc, char *argv[]) {
       jobs_print_job_status(job);
       job->state = JOB_RUNNING;
       sh_jobs->running_jobs_count++;
-    } 
+    }
     // Job was running in background, just bring to foreground
     else {
       job->is_background = false;

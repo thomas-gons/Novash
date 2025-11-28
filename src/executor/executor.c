@@ -215,11 +215,10 @@ static void executor_destroy_context(executor_ctx_t *ctx) {
   xsigprocmask(SIG_SETMASK, &ctx->prev_mask, NULL);
 }
 
-
 static int run_job(job_t *job) {
   if (!job || !job->first_process)
     return -1;
-    
+
   shell_reset_last_exec();
   shell_last_exec_t *last_exec = shell_state_get_last_exec();
   last_exec->command = xstrdup(job->command);
@@ -290,12 +289,15 @@ static int run_job(job_t *job) {
     status = handle_background_execution(job, ctx.pgid);
   else
     status = handle_foreground_execution(job, ctx.sfd);
-    
+
   executor_destroy_context(&ctx);
   clock_gettime(CLOCK_MONOTONIC, &last_exec->ended_at);
-  last_exec->duration_ms = (double)(last_exec->ended_at.tv_sec - last_exec->started_at.tv_sec) * 1000.0 +
-                           (double)(last_exec->ended_at.tv_nsec - last_exec->started_at.tv_nsec) / 1000000.0;
-  
+  last_exec->duration_ms =
+      (double)(last_exec->ended_at.tv_sec - last_exec->started_at.tv_sec) *
+          1000.0 +
+      (double)(last_exec->ended_at.tv_nsec - last_exec->started_at.tv_nsec) /
+          1000000.0;
+
   last_exec->exit_status = status;
   return status;
 }

@@ -35,12 +35,12 @@ int builtin_cd(int argc, char *argv[]) {
   const char *home = shell_state_getenv("HOME");
   char *_path = argv[1];
   int r = chdir(argc == 1 || *_path == '~' ? home : _path);
-  
+
   shell_state_t *sh_state = shell_state_get();
   char *cwd = getcwd(NULL, 0);
   if (cwd) {
-      free(sh_state->identity.cwd);
-      sh_state->identity.cwd = cwd;
+    free(sh_state->identity.cwd);
+    sh_state->identity.cwd = cwd;
   }
   return r;
 }

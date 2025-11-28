@@ -14,7 +14,6 @@
 #include "utils/log.h"
 #include "utils/system/memory.h"
 
-
 typedef enum { REDIR_IN, REDIR_OUT, REDIR_APPEND, REDIR_NONE } redirection_e;
 
 /**

@@ -12,16 +12,16 @@
 #include "config.h"
 #include "utils/collections.h"
 #include "utils/system/syscall.h"
-#include <locale.h>
 #include <fcntl.h>
+#include <locale.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <pwd.h>
 
 // Forward declarations to avoid circular dependencies
 typedef struct job_t job_t;
@@ -33,13 +33,13 @@ typedef struct {
 } env_var_t;
 
 typedef struct {
-    char *command;
-    int exit_status;
-    pid_t bg_pid;
-    pid_t pgid;
-    double duration_ms;
-    struct timespec started_at;
-    struct timespec ended_at;
+  char *command;
+  int exit_status;
+  pid_t bg_pid;
+  pid_t pgid;
+  double duration_ms;
+  struct timespec started_at;
+  struct timespec ended_at;
 } shell_last_exec_t;
 
 typedef struct {
@@ -50,21 +50,21 @@ typedef struct {
 } shell_flags_t;
 
 typedef struct {
-    char hostname[256];  
-    char username[256];  
-    uid_t uid;          
-    gid_t gid;           
-    pid_t pid;           
-    pid_t pgid;          
-    char *cwd;
-    char *argv0;
+  char hostname[256];
+  char username[256];
+  uid_t uid;
+  gid_t gid;
+  pid_t pid;
+  pid_t pgid;
+  char *cwd;
+  char *argv0;
 } shell_identity_t;
 
 typedef struct {
-    job_t *jobs;
-    job_t *jobs_tail;
-    size_t jobs_count;
-    size_t running_jobs_count;
+  job_t *jobs;
+  job_t *jobs_tail;
+  size_t jobs_count;
+  size_t running_jobs_count;
 } shell_jobs_t;
 
 /**
@@ -77,10 +77,10 @@ typedef struct shell_state_t {
   env_var_t *environment;
 
   shell_last_exec_t last_exec;
-  
+
   history_t *hist;
   shell_jobs_t jobs;
-  
+
   shell_flags_t flags;
   struct termios shell_tmodes;
   bool support_utf8;
@@ -108,7 +108,6 @@ shell_state_t *shell_state_get();
  * @return char* The value string if found, or NULL if not found.
  */
 char *shell_state_getenv(const char *key);
-
 
 shell_identity_t *shell_state_get_identity();
 shell_jobs_t *shell_state_get_jobs();

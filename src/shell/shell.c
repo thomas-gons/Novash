@@ -11,7 +11,6 @@
 #include <signal.h>
 #include <string.h>
 
-
 static lexer_t *lex;
 
 static int shell_event_hook() {
@@ -19,8 +18,6 @@ static int shell_event_hook() {
   // Placeholder for future event handling (e.g., signal processing)
   return 0;
 }
-
-
 
 int shell_init() {
   // Initialize shell state early so signal handlers can safely access it.
@@ -45,11 +42,11 @@ int shell_init() {
 
     sh_state->identity.pgid = getpgrp();
     xtcsetpgrp(STDIN_FILENO, sh_state->identity.pgid);
-    
+
     tcgetattr(STDIN_FILENO, &sh_state->shell_tmodes);
     sh_state->shell_tmodes.c_lflag |= (ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &sh_state->shell_tmodes);
-    
+
   } else {
     fprintf(stderr, "warning: stdin is not a TTY, job control disabled\n");
   }
@@ -67,7 +64,6 @@ void shell_cleanup() {
   shell_state_free();
 }
 
-
 int shell_loop() {
   shell_state_t *sh_state = shell_state_get();
   char *input = NULL;
@@ -79,7 +75,7 @@ int shell_loop() {
     prompt = prompt_build_ps1();
     input = readline(prompt);
     free(prompt);
-    
+
     if (!input) {
       if (errno == EINTR) {
         // readline was interrupted by a signal, go back to loop immediately
@@ -97,22 +93,21 @@ int shell_loop() {
       }
     }
 
-
     warning_exit = false;
     lexer_init(lex, input);
 
     ast_node_t *ast_node = parser_create_ast(lex);
-    #if defined (LOG_LEVEL) && LOG_LEVEL >= LOG_LEVEL_DEBUG
-      char *ast_str = parser_ast_str(ast_node, 0);
-      pr_debug("Raw AST:\n%s", ast_str);
-      free(ast_str);
-    #endif
+#if defined(LOG_LEVEL) && LOG_LEVEL >= LOG_LEVEL_DEBUG
+    char *ast_str = parser_ast_str(ast_node, 0);
+    pr_debug("Raw AST:\n%s", ast_str);
+    free(ast_str);
+#endif
     expander_expand_ast(ast_node);
-    #if defined (LOG_LEVEL) && LOG_LEVEL >= LOG_LEVEL_DEBUG
-      ast_str = parser_ast_str(ast_node, 0);
-      pr_debug("Expanded AST:\n%s", ast_str);
-      free(ast_str);
-    #endif
+#if defined(LOG_LEVEL) && LOG_LEVEL >= LOG_LEVEL_DEBUG
+    ast_str = parser_ast_str(ast_node, 0);
+    pr_debug("Expanded AST:\n%s", ast_str);
+    free(ast_str);
+#endif
     history_save_command(lex->input);
     exec_node(ast_node);
     parser_free_ast(ast_node);

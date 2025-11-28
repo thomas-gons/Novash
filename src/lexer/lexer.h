@@ -9,11 +9,11 @@
 #ifndef __LEXER_H__
 #define __LEXER_H__
 
-#include "utils/system/memory.h"
 #include "utils/collections.h"
 #include "utils/log.h"
-#include <stdbool.h>
+#include "utils/system/memory.h"
 #include <ctype.h>
+#include <stdbool.h>
 #include <string.h>
 
 #define MAX_TOKEN_SIZE 512
@@ -39,12 +39,7 @@ typedef enum {
   WORD_GLOB
 } word_part_type_e;
 
-typedef enum {
-  QUOTE_NONE,
-  QUOTE_SINGLE,
-  QUOTE_DOUBLE
-} quote_context_e;
-
+typedef enum { QUOTE_NONE, QUOTE_SINGLE, QUOTE_DOUBLE } quote_context_e;
 
 typedef struct {
   word_part_type_e type;
@@ -109,7 +104,6 @@ token_t lexer_next_token(lexer_t *lex);
  * @return number of characters that would have been written
  */
 size_t lexer_token_str(token_t tok, char *buf, size_t buf_sz);
-
 
 const char *lexer_part_type_str(word_part_type_e type);
 
