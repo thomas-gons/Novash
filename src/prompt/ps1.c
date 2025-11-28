@@ -70,12 +70,13 @@ static char *make_ansi_color(const char *fg, const char *bg) {
 
     char buf[32];
 
+    // \001 and \002 are mandatory to inform readline about non-printable characters
     if (fg_code != -1 && bg_code != -1)
-        snprintf(buf, sizeof(buf), "\033[%d;%dm", fg_code, bg_code);
+        snprintf(buf, sizeof(buf), "\001\033[%d;%dm\002", fg_code, bg_code);
     else if (fg_code != -1)
-        snprintf(buf, sizeof(buf), "\033[%dm", fg_code);
+        snprintf(buf, sizeof(buf), "\001\033[%dm\002", fg_code);
     else if (bg_code != -1)
-        snprintf(buf, sizeof(buf), "\033[%dm", bg_code);
+        snprintf(buf, sizeof(buf), "\001\033[%dm\002", bg_code);
     else
         buf[0] = '\0';
 
