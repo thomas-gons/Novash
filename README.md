@@ -113,13 +113,12 @@ The goal is to implement, from scratch the essential components of a modern UNIX
 - [x] Customizable prompt (`$ `)
 - [x] EOF (Ctrl+D) handling with running job warning
 - [x] Interrupt handling (Ctrl+C) without shell exit
-- [ ] Auto-completion
 - [ ] History expansion (`!cmd`)
 
 ### Command Line
 
 - [X] Line editing (GNU Readline or linenoise)
-- [ ] Auto-completion 
+- [X] Auto-completion (only the one provided by readline for the moment) 
 
 --- 
 
@@ -158,22 +157,34 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 # Debug build with sanitizers
 cmake .. -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON
 
-# Enable tests if needed
-cmake .. -DTESTS=ON
 ```
 #### 2. Build the project
 ```sh
-cmake --build . -j$(nproc) --target nsh  # or tests_novash to build tests
+cmake --build . -j$(nproc) --target nsh
 ```
 
 #### 3. Run the shell
 ```sh
 # Run the shell
 ./build/<debug|release>/nsh
-
-# Run the tests
-./build/<debug|release>/tests_novash
 ```
+
+## Testing
+
+Unit tests are implemented using the [Criterion framework](https://github.com/Snaipe/Criterion).
+
+To run the tests, you can either use the `-t` or `--test` flag of the utility script.
+
+### Manual build and run
+You can also build and run the tests manually by configuring the project with the `-DENABLE_TESTS=ON` CMake option and building the test executable:
+
+```sh
+cmake --build . -j$(nproc) --target tests_novash
+```
+Then run the tests_novash executable located in ``./build/<debug|release>``.
+
+**Note** : Criterion cannot be installed via CMake ``FetchContent`` and must be installed manually on your system.
+Refer to the [official setup instructions](https://criterion.readthedocs.io/en/master/setup.html)
 
 ### Contributing
 Contributions are welcome! Feel free to open issues or submit pull requests on GitHub.
