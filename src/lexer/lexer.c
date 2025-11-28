@@ -214,7 +214,12 @@ static char *handle_variable_word_part(lexer_t *lex) {
 static char *handle_tilde_word_part(lexer_t *lex) {
   size_t start = lex->pos;
   advance(lex); // skip '~'
-  return xstrdup_n(&lex->input[start], 1);
+
+  while (isalnum(peek(lex)) || peek(lex) == '_' || peek(lex) == '-') {
+    advance(lex);
+  }
+
+  return xstrdup_n(&lex->input[start], lex->pos - start);
 }
 
 static char *handle_glob_word_part(lexer_t *lex) {

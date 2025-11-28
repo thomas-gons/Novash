@@ -331,7 +331,7 @@ static void compile_pipeline_job(ast_node_t *node, job_t *job) {
 }
 
 int exec_node(ast_node_t *ast_node) {
-  if (!ast_node)
+  if (!ast_node || ast_node->invalid)
     return -1;
 
   int status = 0;

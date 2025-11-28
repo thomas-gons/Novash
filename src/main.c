@@ -10,7 +10,7 @@
 #include "utils/log.h"
 
 int main() {
-  if (shell_init() != 0) {
+  if (shell_init(false) != 0) {
     return EXIT_FAILURE;
   }
 

@@ -5,7 +5,6 @@
  * This file is licensed under the GNU General Public License v3 or later.
  * See <https://www.gnu.org/licenses/> for details.
  */
-
 #ifndef __PARSER_H__
 #define __PARSER_H__
 
@@ -95,6 +94,7 @@ typedef struct ast_node_t {
     cond_node_t cond;
     seq_node_t seq;
   };
+  bool invalid; /**< Indicates if the node is invalid due to a parsing error */
 } ast_node_t;
 
 /**

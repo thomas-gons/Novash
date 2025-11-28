@@ -5,7 +5,6 @@
  * This file is licensed under the GNU General Public License v3 or later.
  * See <https://www.gnu.org/licenses/> for details.
  */
-
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
 

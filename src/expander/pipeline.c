@@ -82,14 +82,20 @@ static char *expand_tilde_str(const char *s) {
   }
 }
 
-static void pass_expand_tilde(word_part_t *in_parts) {
+static int pass_expand_tilde(word_part_t *in_parts) {
   for (int i = 0; i < arrlen(in_parts); i++) {
     word_part_t *wp = &in_parts[i];
     if (wp->type != WORD_TILDE)
       continue;
-    wp->value = expand_tilde_str(wp->value);
+    char *expanded = expand_tilde_str(wp->value);
+    if (!expanded) {
+      nsh_msg("user not found for '%s'\n", wp->value);
+      return -1;
+    }
     wp->type = WORD_LITERAL;
+    wp->value = expanded;
   }
+  return 0;
 }
 
 static char *build_str_from_parts(word_part_t *parts) {
@@ -113,8 +119,11 @@ static char **pass_glob(word_part_t *in_parts) {
   char *pattern = build_str_from_parts(in_parts);
   int rc = glob(pattern, 0, NULL, &g);
   if (rc == GLOB_NOMATCH || g.gl_pathc == 0) {
-    printf("nsh: glob: no matches found for pattern '%s'\n", pattern);
-    arrpush(out, xstrdup(pattern));
+    nsh_msg("no matches found for pattern '%s'\n", pattern);
+    free(pattern);
+    globfree(&g);
+    arrfree(out);
+    return NULL;
   } else {
     for (size_t j = 0; j < g.gl_pathc; j++)
       arrpush(out, xstrdup(g.gl_pathv[j]));
@@ -124,17 +133,28 @@ static char **pass_glob(word_part_t *in_parts) {
   return out;
 }
 
-char **expand_argv_parts(word_part_t **argv_parts) {
+char **expand_argv_parts(word_part_t **argv_parts, bool *invalid) {
   char **argv = NULL;
   for (int i = 0; i < arrlen(argv_parts); i++) {
     word_part_t *parts = argv_parts[i];
 
     pass_expand_params(parts);
-    pass_expand_tilde(parts);
+    if (pass_expand_tilde(parts) != 0) {
+      *invalid = true;
+      arrfree(argv);
+      return NULL;
+    }
+
     if (arrlen(parts) == 1 && parts[0].type == WORD_LITERAL) {
       arrpush(argv, xstrdup(parts[0].value));
     } else {
       char **argv_entry = pass_glob(parts);
+      if (!argv_entry) {
+        *invalid = true;
+        arrfree(argv);
+        return NULL;
+      }
+
       for (int j = 0; j < arrlen(argv_entry); j++) {
         arrpush(argv, xstrdup(argv_entry[j]));
         free(argv_entry[j]);
@@ -146,9 +166,13 @@ char **expand_argv_parts(word_part_t **argv_parts) {
   return argv;
 }
 
-char *expand_redirection_target(word_part_t *redir_target_parts) {
+char *expand_redirection_target(word_part_t *redir_target_parts,
+                                bool *invalid) {
   pass_expand_params(redir_target_parts);
-  pass_expand_tilde(redir_target_parts);
+  if (pass_expand_tilde(redir_target_parts) != 0) {
+    *invalid = true;
+    return NULL;
+  }
 
   char *final_str = build_str_from_parts(redir_target_parts);
   return final_str;

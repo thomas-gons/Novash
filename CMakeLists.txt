@@ -155,12 +155,18 @@ novash_target_enable_warnings(nsh)
 set(TEST_SOURCES
     tests/test_lexer.c
     tests/test_parser.c
+    tests/test_expander.c
 )
 
 if (ENABLE_TESTS AND HAVE_CRITERION)
     add_executable(tests_novash ${TEST_SOURCES})
-    target_compile_definitions(tests_novash PRIVATE LOG_LEVEL=${LOG_LEVEL_INT})
+    target_compile_definitions(tests_novash PRIVATE LOG_LEVEL=${LOG_LEVEL_INT} "LOG_LEVEL=${LOG_LEVEL_INT}" "TEST=1")
     target_include_directories(tests_novash PRIVATE ${CRITERION_INCLUDE_DIRS} src)
+
+    # Ensure the core library is also built with TEST defined so logging is disabled
+    # in all compilation units, not only in the test executable.
+    target_compile_definitions(novash_core PRIVATE "TEST=1")
+
     target_link_libraries(tests_novash PRIVATE novash_core ${CRITERION_LIBRARIES} ${READLINE_LIBRARIES})
     enable_testing()
     add_test(NAME NovashTests COMMAND tests_novash)

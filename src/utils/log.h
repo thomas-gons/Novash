@@ -19,6 +19,17 @@
 #define BLUE "\x1b[34m"
 #define RESET "\x1b[0m"
 
+#ifndef TEST
+#define nsh_msg(fmt, ...)                                                      \
+  {                                                                            \
+    fprintf(stderr, "nsh: " fmt, ##__VA_ARGS__);                               \
+  }
+#else
+#define nsh_msg(fmt, ...)                                                      \
+  do {                                                                         \
+  } while (0)
+#endif
+
 static inline void log_msg(const char *color, const char *level,
                            const char *file, int line, const char *fmt, ...) {
   char buf[MAX_LOG_BUF_SIZE];

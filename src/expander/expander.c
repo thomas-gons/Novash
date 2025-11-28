@@ -10,7 +10,7 @@
 static void expander_expand_cmd(ast_node_t *node) {
   if (node->cmd.argv_parts) {
     arrfree(node->cmd.argv);
-    node->cmd.argv = expand_argv_parts(node->cmd.argv_parts);
+    node->cmd.argv = expand_argv_parts(node->cmd.argv_parts, &node->invalid);
   }
 
   if (node->cmd.redir) {
@@ -18,7 +18,7 @@ static void expander_expand_cmd(ast_node_t *node) {
       redirection_t *r = &node->cmd.redir[i];
       if (r->target_parts) {
         free(r->target);
-        r->target = expand_redirection_target(r->target_parts);
+        r->target = expand_redirection_target(r->target_parts, &node->invalid);
       }
     }
   }

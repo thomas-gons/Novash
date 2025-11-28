@@ -40,7 +40,7 @@
  * * @return 0 on successful initialization, 1 on failure (e.g., terminal
  * control error).
  */
-int shell_init();
+int shell_init(bool ignore_tty_warn);
 
 /**
  * @brief Executes the main Read-Eval-Print Loop (REPL) of the shell.

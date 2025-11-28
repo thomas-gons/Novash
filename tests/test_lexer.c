@@ -5,7 +5,6 @@
  * This file is licensed under the GNU General Public License v3 or later.
  * See <https://www.gnu.org/licenses/> for details.
  */
-
 #include "lexer/lexer.h"
 #include <criterion/criterion.h>
 #include <criterion/redirect.h>
@@ -108,13 +107,11 @@ Test(lexer, tilde_word_part) {
   cr_assert_str_eq(tok.parts[0].value, "~");
   lexer_free_token(&tok);
 
-  // ~user -> ~ [TILDE] and user [LIT]
+  // ~user -> ~user [TILDE]
   tok = lexer_next_token(lex);
-  cr_assert_eq(arrlen(tok.parts), 2);
+  cr_assert_eq(arrlen(tok.parts), 1);
   cr_assert_eq(tok.parts[0].type, WORD_TILDE);
-  cr_assert_str_eq(tok.parts[0].value, "~");
-  cr_assert_eq(tok.parts[1].type, WORD_LITERAL);
-  cr_assert_str_eq(tok.parts[1].value, "user");
+  cr_assert_str_eq(tok.parts[0].value, "~user");
   lexer_free_token(&tok);
 
   // ~~ -> ~ [TILDE] and ~ [LIT]

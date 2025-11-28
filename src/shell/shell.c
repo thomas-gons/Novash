@@ -19,7 +19,7 @@ static int shell_event_hook() {
   return 0;
 }
 
-int shell_init() {
+int shell_init(bool ignore_tty_warn) {
   // Initialize shell state early so signal handlers can safely access it.
   shell_state_init();
   shell_state_t *sh_state = shell_state_get();
@@ -47,8 +47,8 @@ int shell_init() {
     sh_state->shell_tmodes.c_lflag |= (ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &sh_state->shell_tmodes);
 
-  } else {
-    fprintf(stderr, "warning: stdin is not a TTY, job control disabled\n");
+  } else if (!ignore_tty_warn) {
+    pr_warn("stdin is not a TTY, job control disabled");
   }
 
   // Disable buffering for stdout. Ensures immediate output for status messages.
