@@ -1,5 +1,5 @@
 # Novash
-**A minimal Unix-like shell written in C**
+![Build Status](thumbnail.jpeg)
 
 A lightweight shell inspired by the [Build your own Shell](https://app.codecrafters.io/courses/shell/overview) roadmap from CodeCrafters.
 The goal is to implement, from scratch the essential components of a modern UNIX shell including parsing, executing, background jobs and user interaction.
